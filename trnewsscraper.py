@@ -99,6 +99,9 @@ class NewsScraper:
 
         sources = [
             self._sabah_url_scraper,
+            self._milliyet_url_scraper,
+            self._hurriyet_url_scraper,
+            self._posta_url_scraper
         ]
 
         for k in self.keywords:
@@ -136,6 +139,44 @@ class NewsScraper:
                     self.urls.append({"url": f"https://www.sabah.com.tr{item_url}", "date": date, "keyword": keyword})
                     self.local_url_cache.append(f"sabah_{item_url}")
 
+    def _milliyet_url_scraper(self, keyword, page):
+        page = page + 1
+        url = f"https://www.milliyet.com.tr/api/search/searchcontentloadmore?query={keyword}&page={page}&isFromNewsSearchPage=true"
+        req = self.session.get(url)
+        content = str(req.content)
+
+        items = content.split('<div class="news__item col-md-12 col-sm-6">')
+        items = items[1:]
+
+        for item in items:
+            date = item.split('<span class="news__date">')[1].split('</span>')[0]
+            item_url = item.split('<a href="')[1].split('"')[0]
+            if f"milliyet_{item_url}" not in self.local_url_cache:
+                if len(item_url.split("https://www.milliyet.com.tr")) > 1:
+                    pass
+                elif len(item_url.split("/gundem/")) > 1:
+                    self.urls.append(
+                        {"url": f"https://www.milliyet.com.tr{item_url}", "date": date, "keyword": keyword})
+                    self.local_url_cache.append(f"milliyet_{item_url}")
+
+    def _hurriyet_url_scraper(self, keyword, page):
+        url = f"https://www.hurriyet.com.tr/api/search/searchcontentloadmore?query={keyword}&page={page}&isFromNewsSearchPage=true"
+        req = self.session.get(url)
+        content = str(req.content)
+
+        items = content.split('<div class="tag__list__item">')
+        items = items[1:]
+
+        for item in items:
+            item_url = item.split('<a href="')[1].split('"')[0]
+            if f"hurriyet_{item_url}" not in self.local_url_cache:
+                if len(item_url.split("https://www.hurriyet.com.tr")) > 1:
+                    pass
+                elif len(item_url.split("/gundem/")) > 1:
+                    self.urls.append(
+                        {"url": f"https://www.hurriyet.com.tr{item_url}", "date": None, "keyword": keyword})
+                    self.local_url_cache.append(f"hurriyet_{item_url}")
+
     def _cnn_url_scraper(self, keyword, start_page, end_page):
         url = f"https://www.cnnturk.com/api/lazy/loadmore?containerSize=col-12&url=/{keyword}&orderBy=StartDate%20desc&paths=&subPath=True&tags={keyword}&skip={start_page}&top={end_page}&contentTypes=Article&customTypes=&viewName=load-mixed-by-date&controlIxName="
         req = self.session.get(url)
@@ -154,3 +195,22 @@ class NewsScraper:
                 else:
                     self.urls.append({"url": f"https://www.cnnturk.com{item_url}", "date": date, "keyword": keyword})
                     self.local_url_cache.append(f"cnn_{item_url}")
+
+    def _posta_url_scraper(self, keyword, page):
+        page = page + 1
+        url = f"https://www.posta.com.tr/api/search/searchcontentloadmore?query={keyword}&page={page}&isFromNewsSearchPage=true"
+        req = self.session.get(url)
+        content = str(req.content)
+
+        items = content.split('<div class="news__item col-md-12 col-sm-6">')
+        items = items[1:]
+
+        for item in items:
+            date = item.split('<span class="news__date">')[1].split('</span>')[0]
+            item_url = item.split('<a href="')[1].split('"')[0]
+            if f"posta_{item_url}" not in self.local_url_cache:
+                if len(item_url.split("https://www.posta.com.tr")) > 1:
+                    pass
+                elif len(item_url.split("/gundem/")) > 1:
+                    self.urls.append({"url": f"https://www.posta.com.tr{item_url}", "date": date, "keyword": keyword})
+                    self.local_url_cache.append(f"posta_{item_url}")
