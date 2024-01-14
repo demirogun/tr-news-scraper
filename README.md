@@ -39,3 +39,19 @@ multiple_keywords_news = scraper.scrape(["keyword_1", "keyword_2", "keyword_3"])
 - [Milliyet](https://www.milliyet.com.tr/)
 - [Sabah](https://www.sabah.com.tr/)
 - [Posta](https://www.posta.com.tr/)
+
+## Citiation
+APA
+```
+Demir, O., & Avcıoğlu, A. (2024). tr-news-scraper: Turkish news articles scraper based on specified keywords (Version 0.1.0) [Software]. https://github.com/demirogun/tr-news-scraper
+```
+BibTeX
+```
+@software{tr-news-scraper,
+  author = {Ogün Demir and Aydoğan Avcı},
+  title = {{tr-news-scrape}},
+  version = {0.1.0},
+  url = {https://github.com/demirogun/tr-news-scraper},
+  year = {2024}
+}
+```
