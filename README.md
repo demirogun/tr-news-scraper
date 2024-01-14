@@ -1,3 +1,5 @@
+[![PyPI Latest Release](https://img.shields.io/pypi/v/tr-news-scraper.svg)](https://pypi.org/project/tr-news-scraper/) [![PyPI Downloads](https://img.shields.io/pypi/dm/tr-news-scraper.svg?label=PyPI%20downloads)](https://pypi.org/project/tr-news-scraper/) [![PyPI Downloads](https://img.shields.io/pypi/dw/tr-news-scraper.svg?label=PyPI%20downloads)](https://pypi.org/project/tr-news-scraper/) [![DOI](https://zenodo.org/badge/741400320.svg)](https://zenodo.org/doi/10.5281/zenodo.10509649) [![License - MIT](https://img.shields.io/pypi/l/tr-news-scraper.svg)](https://github.com/demirogun/tr-news-scraper/blob/main/LICENSE)
+
 # tr-news-scraper
 
 tr-news-scraper is a Python library that allows users to scrape Turkish news articles based on specified keywords from multiple sources. It gather news content from various news websites, enabling users to extract valuable information for analysis or research purposes.
