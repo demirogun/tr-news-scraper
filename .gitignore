@@ -158,3 +158,7 @@ cython_debug/
 /docs/ideas/
 /docs/intent/
 /tasks/
+
+# Local audit and lowest-versions environments (see SPEC-foundation)
+.audit/
+.venv-lowest/
