@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 from contextlib import suppress
 from datetime import date, datetime, time, timedelta
@@ -270,7 +270,12 @@ def _search(
     query = KeywordQuery(parse_keywords(keywords))
     first, after = parse_range(start, end)
     chosen = resolve_outlets(outlets)
-    runs = _run_all(chosen, http, query, first, after, today=now.date(), offline=offline)
+    today = now.date()
+    runs = in_threads(
+        chosen,
+        http,
+        lambda outlet: run_outlet(outlet, http, query, first, after, today=today, offline=offline),
+    )
     failures = {run.outlet.id: run.failure for run in runs if run.failure is not None}
     if len(failures) == len(runs):
         raise SearchFailed(failures, hint=_OFFLINE_HINT if offline else None)
@@ -286,26 +291,14 @@ def _search(
     )
 
 
-def _run_all(
-    outlets: Sequence[Outlet],
-    http: Http,
-    query: KeywordQuery,
-    start: date,
-    end: date,
-    *,
-    today: date,
-    offline: bool,
-) -> list[OutletRun]:
-    """Run every outlet at once, one thread each (S2).
+def in_threads[T](outlets: Sequence[Outlet], http: Http, task: Callable[[Outlet], T]) -> list[T]:
+    """Run ``task`` for every outlet at once, one thread each, and return the results in order.
 
-    On Ctrl+C, or when a worker raises anything but ``OutletFailed``, the client is cancelled:
-    every worker stops before its next request, and the exception is raised once they have.
+    On Ctrl+C, or when a task raises, the client is cancelled: every task stops before its next
+    request, and the exception is raised once they have (S2).
     """
     with ThreadPoolExecutor(max_workers=len(outlets), thread_name_prefix="tr-news-scraper") as pool:
-        futures = [
-            pool.submit(run_outlet, outlet, http, query, start, end, today=today, offline=offline)
-            for outlet in outlets
-        ]
+        futures = [pool.submit(task, outlet) for outlet in outlets]
         try:
             _wait_for(futures)
         except BaseException:
@@ -315,7 +308,7 @@ def _run_all(
     return [future.result() for future in futures]
 
 
-def _wait_for(futures: Sequence[Future[OutletRun]]) -> None:
+def _wait_for[T](futures: Sequence[Future[T]]) -> None:
     """Wait in short steps, so Ctrl+C gets through, and raise the first worker's exception."""
     pending = set(futures)
     while pending:

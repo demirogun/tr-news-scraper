@@ -171,15 +171,15 @@ def articles_frame(rows: Sequence[Row]) -> pd.DataFrame:
 
     return pd.DataFrame(
         {
-            "outlet": _strings([row.outlet for row in rows]),
-            "month": _strings([str(row.month) for row in rows]),
-            "day": _times([row.day for row in rows], DAY_DTYPE),
-            "title": _strings([row.title for row in rows]),
-            "url": _strings([row.url for row in rows]),
-            "matched": _strings([", ".join(row.matched) for row in rows]),
-            "reasons": _strings(["; ".join(row.reasons) for row in rows]),
-            "lastmod": _times([row.lastmod for row in rows], TIME_DTYPE),
-            "source": _strings([row.source for row in rows]),
+            "outlet": string_series([row.outlet for row in rows]),
+            "month": string_series([str(row.month) for row in rows]),
+            "day": time_series([row.day for row in rows], DAY_DTYPE),
+            "title": string_series([row.title for row in rows]),
+            "url": string_series([row.url for row in rows]),
+            "matched": string_series([", ".join(row.matched) for row in rows]),
+            "reasons": string_series(["; ".join(row.reasons) for row in rows]),
+            "lastmod": time_series([row.lastmod for row in rows], TIME_DTYPE),
+            "source": string_series([row.source for row in rows]),
         }
     )
 
@@ -191,23 +191,25 @@ def gaps_frame(runs: Sequence[OutletRun]) -> pd.DataFrame:
     gaps = [(run.outlet.id, gap) for run in runs for gap in run.gaps]
     return pd.DataFrame(
         {
-            "outlet": _strings([outlet for outlet, _ in gaps]),
-            "reason": _strings([gap.reason for _, gap in gaps]),
-            "month": _strings([None if gap.month is None else str(gap.month) for _, gap in gaps]),
-            "keyword": _strings([gap.keyword for _, gap in gaps]),
-            "detail": _strings([gap.detail for _, gap in gaps]),
-            "url": _strings([gap.url for _, gap in gaps]),
+            "outlet": string_series([outlet for outlet, _ in gaps]),
+            "reason": string_series([gap.reason for _, gap in gaps]),
+            "month": string_series(
+                [None if gap.month is None else str(gap.month) for _, gap in gaps]
+            ),
+            "keyword": string_series([gap.keyword for _, gap in gaps]),
+            "detail": string_series([gap.detail for _, gap in gaps]),
+            "url": string_series([gap.url for _, gap in gaps]),
         }
     )
 
 
-def _strings(values: Sequence[str | None]) -> pd.Series:
+def string_series(values: Sequence[str | None]) -> pd.Series:
     import pandas as pd
 
     return pd.Series(values, dtype="string")
 
 
-def _times(values: Sequence[date | datetime | None], dtype: str) -> pd.Series:
+def time_series(values: Sequence[date | datetime | None], dtype: str) -> pd.Series:
     import pandas as pd
 
     return pd.Series(
