@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from datetime import date, timedelta
 
 from lxml import etree
@@ -33,6 +33,16 @@ from tr_news_scraper.outlets._model import (
     Month,
     MonthlySitemap,
     Outlet,
+    SiteSearch,
+)
+from tr_news_scraper.outlets._search import (
+    Outcome,
+    Page,
+    SearchPageError,
+    page_url,
+    parse_page,
+    query_text,
+    results_in_range,
 )
 from tr_news_scraper.outlets._sitemaps import (
     SitemapError,
@@ -44,8 +54,10 @@ from tr_news_scraper.outlets._sitemaps import (
 logger = logging.getLogger("tr_news_scraper.outlets")
 
 XML_ACCEPT = "application/xml, text/xml;q=0.9, */*;q=0.1"
+HTML_ACCEPT = "text/html, */*;q=0.1"
 INDEX_TTL = timedelta(hours=1)
-READ_ERRORS = (HttpError, etree.XMLSyntaxError, SitemapError)
+SEARCH_TTL = timedelta(hours=1)
+READ_ERRORS = (HttpError, etree.LxmlError, SitemapError, SearchPageError)
 
 
 def month_ttl(month: Month, today: date) -> timedelta:
@@ -128,7 +140,7 @@ class Scan:
             if isinstance(self.outlet, MonthlySitemap):
                 yield from self._monthly(self.outlet)
             else:
-                raise NotImplementedError("site search arrives with the search engine")
+                yield from self._site_search(self.outlet)
             if self._attempts and not self._successes:
                 raise OutletFailed(self.outlet.id, "none of the files it needed could be read")
         finally:
@@ -166,6 +178,65 @@ class Scan:
                 found.dropped,
             )
             yield from found.candidates
+
+    def _site_search(self, outlet: SiteSearch) -> Iterator[Candidate]:
+        queries: dict[str, str] = {}
+        for keyword in self._keywords:
+            queries.setdefault(query_text(keyword), keyword)
+        for query, keyword in queries.items():
+            if not query:
+                continue
+            outcome = Outcome()
+            fetch = self._page_fetcher(outlet, query)
+            try:
+                for result in results_in_range(
+                    fetch, self._start, self._end, outlet.max_pages, outcome
+                ):
+                    yield Candidate(
+                        outlet=outlet.id,
+                        url=result.url,
+                        month=Month.of(result.day),
+                        title=result.title,
+                        day=result.day,
+                        source=result.source,
+                    )
+            except READ_ERRORS as error:
+                self._fail(
+                    error,
+                    f"the search for {keyword!r}",
+                    keyword=keyword,
+                    url=getattr(error, "url", None),
+                )
+                continue
+            if outcome.exhausted:
+                gap = Gap(
+                    "window",
+                    f"{outlet.name}'s search has nothing older than {outcome.oldest_seen} for "
+                    f"{keyword!r}, so the rest of the range can't be reached through it",
+                    keyword=keyword,
+                )
+                self.gaps.append(gap)
+                logger.warning("%s: %s", outlet.name, gap.detail)
+
+    def _page_fetcher(self, outlet: SiteSearch, query: str) -> Callable[[int], Page]:
+        def fetch(number: int) -> Page:
+            url = page_url(outlet, query, number)
+            self._attempts += 1
+            page = parse_page(self._get(url, SEARCH_TTL, HTML_ACCEPT).text(), outlet, number, url)
+            self._successes += 1
+            self.dropped += page.dropped
+            logger.debug(
+                "%s: page %d has %d results, kept %d, dropped %d, unreadable %d",
+                outlet.name,
+                number,
+                page.items,
+                len(page.results),
+                page.dropped,
+                page.unreadable,
+            )
+            return page
+
+        return fetch
 
     def _get(self, url: str, ttl: timedelta, accept: str) -> Response:
         policy = CachePolicy(offline=True) if self._offline else CachePolicy(ttl=ttl)
