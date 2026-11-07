@@ -119,7 +119,9 @@ def test_text_keeps_paragraph_breaks_but_no_blank_lines_or_runs_of_spaces() -> N
 
 
 def test_a_page_without_article_text_is_an_error() -> None:
-    found = extract("<html><head><title>Boş</title></head><body></body></html>", "https://x.com.tr/a")
+    found = extract(
+        "<html><head><title>Boş</title></head><body></body></html>", "https://x.com.tr/a"
+    )
     assert found.error == "no article text found"
     assert found.text is None
 
@@ -159,3 +161,34 @@ def test_extraction_takes_under_100_ms_per_page_at_the_median() -> None:
         extract(html, "https://x.com.tr/a")
         times.append(time.perf_counter() - started)
     assert statistics.median(times) < 0.1, f"median {statistics.median(times) * 1000:.0f} ms"
+
+
+def test_a_document_with_metadata_but_no_text_is_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Document:
+        title = "Başlık"
+        author = None
+        date = "2023-02-12"
+        text = "  \n "
+
+    monkeypatch.setattr("trafilatura.bare_extraction", lambda *args, **kwargs: Document())
+    found = extract("<html><body><p>x</p></body></html>", "https://x.com.tr/a")
+    assert found == Extracted(
+        title="Başlık",
+        published=datetime(2023, 2, 12, tzinfo=ISTANBUL),
+        error="no article text found",
+    )
+
+
+def test_helpers_tidy_lines_and_paragraphs() -> None:
+    assert extract_module._line(None) is None
+    assert extract_module._line("   ") is None
+    assert extract_module._line(" Café  ve \t çay ") == "Café ve çay"
+    assert extract_module._paragraphs(None) is None
+    assert extract_module._paragraphs(" \n\n ") is None
+    assert extract_module._paragraphs(" Bir  iki \n\n üç ") == "Bir iki\nüç"
+
+
+def test_publication_times_fall_back_to_the_day_or_nothing() -> None:
+    assert extract_module._published(None) is None
+    assert extract_module._published("2023-02-12") == datetime(2023, 2, 12, tzinfo=ISTANBUL)
+    assert extract_module._published("12 Şubat 2023") is None
