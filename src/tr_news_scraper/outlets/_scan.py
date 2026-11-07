@@ -151,7 +151,7 @@ class Scan:
             listed = listed_months(self._get(outlet.index, INDEX_TTL, XML_ACCEPT).xml(), outlet)
         except READ_ERRORS as error:
             raise OutletFailed(
-                outlet.id, f"its sitemap index couldn't be read: {_describe(error)}"
+                outlet.id, f"its sitemap index couldn't be read: {describe(error)}"
             ) from error
         if not listed:
             raise OutletFailed(outlet.id, "its sitemap index lists no monthly files")
@@ -258,7 +258,7 @@ class Scan:
             reason = "blocked"
         gap = Gap(
             reason,
-            f"{what} couldn't be read: {_describe(error)}",
+            f"{what} couldn't be read: {describe(error)}",
             month=month,
             keyword=keyword,
             url=url,
@@ -288,7 +288,7 @@ class Scan:
             )
 
 
-def _describe(error: Exception) -> str:
+def describe(error: Exception) -> str:
     """A short, plain reason for a read failure."""
     if isinstance(error, RobotsDisallowed):
         return "robots.txt disallows it"
