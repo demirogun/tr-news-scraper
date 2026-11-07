@@ -17,6 +17,9 @@ ALLOWED = {
     "Cumhuriyet": "https://www.cumhuriyet.com.tr/sitemaps/posts-2023-2.xml",
     "Euronews Türkçe": "https://tr.euronews.com/sitemap/articles-2023-02.xml",
     "TRT Haber": "https://www.trthaber.com/sitemaps/news-2023-02.xml",
+    "Star": "https://www.star.com.tr/sitemaps/posts-2023-02.xml",
+    "Akşam": "https://www.aksam.com.tr/sitemaps/posts-2023-02.xml",
+    "Sözcü": "https://www.sozcu.com.tr/feeds/sitemapposts?year=2024&month=6",
     "Milliyet": "https://www.milliyet.com.tr/api/search/searchcontentloadmore?query=deprem&page=1",
 }
 # Endpoints that 0.1.0 used, or that we once planned to use, and that robots.txt now forbids.
