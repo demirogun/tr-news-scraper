@@ -540,6 +540,15 @@ wheels = [
 ]
 
 [[package]]
+name = "protego"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/d9/5026b9e75db1172f02441a84eaf42efb199b4cea14dda7651a620d1acd40/protego-0.7.0.tar.gz", hash = "sha256:2c032d9736a1f4f0c4318f3558353ae34da5cd038f1a5e064ded7548df315e5a", size = 3144321, upload-time = "2026-09-21T10:54:00.107Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/20/e4382a85e4cf4746d11746481f83360b990165725dd36ba73d55e029e6a9/protego-0.7.0-py3-none-any.whl", hash = "sha256:944638aaee608f6c83fcad442695f3f9381a60be8d5007248f46b00f201fa5fc", size = 13714, upload-time = "2026-09-21T10:53:58.812Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
@@ -637,6 +646,7 @@ source = { editable = "." }
 dependencies = [
     { name = "certifi" },
     { name = "idna" },
+    { name = "protego" },
     { name = "requests" },
     { name = "urllib3" },
 ]
@@ -655,6 +665,7 @@ dev = [
 requires-dist = [
     { name = "certifi", specifier = ">=2026.10.18" },
     { name = "idna", specifier = ">=3.15,<4" },
+    { name = "protego", specifier = ">=0.7,<1" },
     { name = "requests", specifier = ">=2.33,<3" },
     { name = "urllib3", specifier = ">=2.7,<3" },
 ]

@@ -25,3 +25,10 @@ class HostNotAllowed(HttpError):
     def __init__(self, url: str, reason: str) -> None:
         super().__init__(url, f"refused, {reason}")
         self.reason = reason
+
+
+class RobotsDisallowed(HttpError):
+    """The site's robots.txt doesn't allow tr-news-scraper to fetch this URL."""
+
+    def __init__(self, url: str) -> None:
+        super().__init__(url, "robots.txt disallows fetching")

@@ -9,10 +9,19 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from requests_mock import Mocker
 
 from tr_news_scraper._http import Http, HttpConfig
 
 START = datetime(2026, 11, 7, 12, 0, tzinfo=UTC)
+PERMISSIVE_HOSTS = ("news.example.com", "other.example.com")
+
+
+@pytest.fixture(autouse=True)
+def _robots_allow_everything(requests_mock: Mocker) -> None:
+    """The usual test hosts have no robots.txt (404), which RFC 9309 reads as "allow all"."""
+    for host in PERMISSIVE_HOSTS:
+        requests_mock.get(f"https://{host}/robots.txt", status_code=404)
 
 
 class FakeClock:
