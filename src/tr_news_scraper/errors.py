@@ -57,6 +57,16 @@ class NotCached(HttpError):
         super().__init__(url, "offline, and not in the cache")
 
 
+class OutletFailed(TrNewsError):
+    """Nothing could be read from an outlet's archive: its sitemap index, or every file or
+    page the date range needed, failed."""
+
+    def __init__(self, outlet: str, reason: str) -> None:
+        super().__init__(f"{outlet}: {reason}")
+        self.outlet = outlet
+        self.reason = reason
+
+
 class RequestFailed(HttpError):
     """Retries ran out, or the server answered with an error that retrying can't fix."""
 

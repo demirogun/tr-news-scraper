@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib
 import logging
 import re
@@ -43,6 +44,23 @@ def test_package_logger_stays_silent_unless_the_application_configures_logging()
 
 def test_library_errors_share_one_base_class() -> None:
     assert issubclass(TrNewsError, Exception)
+
+
+def test_only_the_http_layer_imports_requests() -> None:
+    package = Path(tr_news_scraper.__file__).parent
+    importers = []
+    for module in package.rglob("*.py"):
+        if "_http" in module.relative_to(package).parts:
+            continue
+        for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            if any(name == "requests" or name.startswith("requests.") for name in names):
+                importers.append(module.relative_to(package).as_posix())
+    assert importers == []
 
 
 def test_unit_tests_cannot_reach_the_real_network() -> None:
