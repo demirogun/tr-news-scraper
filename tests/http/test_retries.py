@@ -10,6 +10,7 @@ from email.utils import format_datetime
 import pytest
 import requests
 from requests_mock import Mocker
+from urllib3 import HTTPSConnectionPool
 from urllib3.exceptions import ProtocolError, ReadTimeoutError
 
 from tr_news_scraper._http import Http
@@ -105,7 +106,10 @@ def test_a_read_timeout_is_retried(
 
 @pytest.mark.parametrize(
     "error",
-    [ReadTimeoutError(None, PAGE, "stalled mid-body"), ProtocolError("connection broken")],
+    [
+        ReadTimeoutError(HTTPSConnectionPool("news.example.com"), PAGE, "stalled mid-body"),
+        ProtocolError("connection broken"),
+    ],
     ids=["read-timeout", "connection-broken"],
 )
 def test_a_body_that_breaks_off_mid_download_is_retried(
