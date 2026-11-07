@@ -41,9 +41,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     - Star, from September 2012, with headlines;
     - Akşam, from December 2010;
     - Sözcü, from December 2023, when its new website started.
+  - Milliyet is read through its site search, which robots.txt allows. Its results come with
+    headlines and dates, but the search returns only its newest 10,000 results for each keyword.
+    For "deprem" that reaches back to May 2024.
+  - A past range in a search hundreds of pages deep is found with about ten requests (a binary
+    search over the pages), not by reading every page.
   - Only the months an outlet's own sitemap index lists are ever requested. Anything that couldn't
-    be read is reported with the reason: before the archive starts, blocked by robots.txt, refused
-    by the site, or failed.
+    be read is reported with the reason: before the archive starts, past the end of a search,
+    blocked by robots.txt, refused by the site, or failed.
   - You can add an outlet of your own by writing what it is, not code:
     `MonthlySitemap(id=..., name=..., index=..., month_file=...)`.
 

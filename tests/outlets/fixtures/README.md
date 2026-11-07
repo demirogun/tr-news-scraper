@@ -7,8 +7,10 @@ robots.txt obeyed, honest User-Agent, one request per second per site.
   index also keeps its entries that aren't month files.
 - Each month file keeps 20 entries: the first 8, the last 8, and up to 4 entries in between whose
   URL contains "deprem". Video elements were removed.
-- Nothing here contains article text. The files hold URLs, dates, and image titles: headlines for
-  Star, photo titles for Euronews Türkçe.
+- Milliyet's search pages keep their first 5 results, and each result's summary is replaced with
+  "…". Page 401 is the empty page that follows the last results.
+- Nothing here contains article text. The files hold URLs, dates, headlines, and image titles
+  (headlines for Star, photo titles for Euronews Türkçe).
 
 | File | Source |
 |---|---|
@@ -24,3 +26,6 @@ robots.txt obeyed, honest User-Agent, one request per second per site.
 | `aksam/2023-02.xml` | https://www.aksam.com.tr/sitemaps/posts-2023-02.xml |
 | `sozcu/index.xml` | https://www.sozcu.com.tr/feeds/sitemapindex |
 | `sozcu/2024-06.xml` | https://www.sozcu.com.tr/feeds/sitemapposts?year=2024&month=6 |
+| `milliyet/deprem-page-1.html` | https://www.milliyet.com.tr/api/search/searchcontentloadmore?query=deprem&page=1 |
+| `milliyet/deprem-page-400.html` | the same search, `page=400` |
+| `milliyet/deprem-page-401.html` | the same search, `page=401` |

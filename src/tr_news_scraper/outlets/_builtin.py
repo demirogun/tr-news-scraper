@@ -6,7 +6,7 @@ that every one still works.
 
 from __future__ import annotations
 
-from tr_news_scraper.outlets._model import Month, MonthlySitemap, Outlet
+from tr_news_scraper.outlets._model import Month, MonthlySitemap, Outlet, SiteSearch
 
 CUMHURIYET = MonthlySitemap(
     id="cumhuriyet",
@@ -63,7 +63,29 @@ SOZCU = MonthlySitemap(
     notes="Sözcü's new website, from December 2023; older articles aren't in its archive.",
 )
 
-BUILTIN: tuple[Outlet, ...] = (CUMHURIYET, EURONEWS_TR, TRT_HABER, STAR, AKSAM, SOZCU)
+
+def _has_class(name: str) -> str:
+    """An XPath test for an element whose class list includes ``name``."""
+    return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
+
+
+# /api/search/ is allowed by Milliyet's robots.txt; its /arama/ pages are not, and aren't used.
+MILLIYET = SiteSearch(
+    id="milliyet",
+    name="Milliyet",
+    url="https://www.milliyet.com.tr/api/search/searchcontentloadmore?query={query}&page={page}",
+    item=f"//div[{_has_class('news__item')}]",
+    link=f".//a[{_has_class('news__titles-link')}]/@href",
+    title=f".//strong[{_has_class('news__title')}]",
+    date=f".//span[{_has_class('news__date')}]",
+    date_format="%d.%m.%Y",
+    notes=(
+        "Milliyet's search returns only its newest 10,000 results for each keyword; for a "
+        "frequent word like 'deprem' that reaches back about two and a half years."
+    ),
+)
+
+BUILTIN: tuple[Outlet, ...] = (CUMHURIYET, EURONEWS_TR, TRT_HABER, STAR, AKSAM, SOZCU, MILLIYET)
 
 
 def builtin() -> tuple[Outlet, ...]:
