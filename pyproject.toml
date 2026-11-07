@@ -68,8 +68,9 @@ target-version = "py312"
 # E/W/F basics, I imports, B bugbear, UP pyupgrade, S bandit security, BLE no blind except,
 # DTZ no naive datetimes, T20 no print, PT pytest style, SIM simplify, RUF ruff-specific
 select = ["E", "W", "F", "I", "B", "UP", "S", "BLE", "DTZ", "T20", "PT", "SIM", "RUF"]
-# Turkish text is this project's subject: dotless ı is a letter here, not a lookalike of i.
-allowed-confusables = ["ı"]
+# Turkish text is this project's subject: dotless ı is a letter here, not a lookalike of i, and
+# news headlines use typographic apostrophes.
+allowed-confusables = ["ı", "’", "ʼ"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
