@@ -62,10 +62,11 @@ select = ["E", "W", "F", "I", "B", "UP", "S", "BLE", "DTZ", "T20", "PT", "SIM", 
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+"scripts/**" = ["T20"]
 
 [tool.mypy]
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers -m 'not live' --cov --cov-report=term-missing"
