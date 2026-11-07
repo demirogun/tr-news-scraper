@@ -51,6 +51,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     blocked by robots.txt, refused by the site, or failed.
   - You can add an outlet of your own by writing what it is, not code:
     `MonthlySitemap(id=..., name=..., index=..., month_file=...)`.
+  - Every week, GitHub Actions checks each built-in outlet against its real archive. When one
+    breaks, the check opens an issue in this repository and closes it once the outlet works again.
 
 ### Changed
 - Requires Python 3.12 or newer. Python 3.10 reached end of life in October 2026, and the exact
