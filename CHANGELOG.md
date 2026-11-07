@@ -38,6 +38,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     (`kayıp` → `kaybı`); and some outlets replace "ı" in URLs, so their URLs can miss words their
     headlines contain.
 
+- `search()`, the new way to find news: keywords and a past date range in, one pandas table of
+  articles out, with a report on every outlet.
+
+  ```python
+  from tr_news_scraper import search
+
+  result = search(["deprem", "tsunami"], "2023-02-01", "2023-03-01")
+  result.articles   # one row per article: outlet, month, day, title, url, matched, reasons, ...
+  print(result)     # what each outlet found, and why some found nothing
+  ```
+
+  - An article is kept when its headline or URL names a keyword, and each row says why. A URL
+    found twice, in two monthly files or for two keywords, is one row.
+  - Every outlet is searched at the same time, and each site still gets one request per second.
+    `deprem` in February 2023 returns 7,598 articles from five outlets.
+  - Sitemap archives date an article only to its month, so until `fetch()` reads the page a row
+    has its archive month; Milliyet's rows have their day. Entries last edited more than a day
+    before the start can't be in the range: they're left out, and the report counts them.
+  - The report gives each outlet's status (`ok`, `incomplete` or `failed`), how much of the range
+    its archive covers, and why, such as "the archive starts in 2023-12". When every outlet fails,
+    `SearchFailed` lists the reasons.
+  - Ctrl+C stops every outlet before its next request, on Windows too.
+  - The result records what was searched, when, and with which version.
+- `coverage()`, which lists what each outlet's archive covers without making a request.
+  `coverage(check=True)` also checks every archive now, with two requests per outlet.
 - `tr_news_scraper.outlets`, the news archives 1.0 reads, described as data you can extend:
   - Six built-in outlets publish monthly sitemaps that their robots.txt allows:
     - Cumhuriyet, from 1962 (every month since July 2008);
@@ -69,6 +94,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - tzdata is a new dependency. Archive times without an offset are read in Türkiye's time zone
   (Europe/Istanbul), including the UTC+2 winters before 2016, and Windows has no time zone
   database of its own.
+- pandas stays a dependency, from version 2.2.3 (pandas 3 included). Importing tr_news_scraper
+  doesn't import it: it loads when the first result table is built.
 
 ### Removed
 - `NewsScraper` and the `tr_news_scraper.tr_news_scraper` module. Importing it now raises an
@@ -98,8 +125,17 @@ df = tns.NewsScraper(page_limit=20).scrape(["deprem"])
 
 That module is gone. 1.0 replaces it with `search()`, which finds articles for keywords in a date
 range, and `fetch()`, which downloads the text of the articles you keep. Both respect each site's
-robots.txt. The replacement API is still being built on the `v1-rewrite` branch, and this section
-will show a complete example before 1.0.0 is released.
+robots.txt. Instead of a page limit, you give the date range:
+
+```python
+from tr_news_scraper import search
+
+result = search(["deprem"], "2023-02-01", "2023-03-01")
+df = result.articles   # outlet, month, day, title, url, matched, reasons, lastmod, source
+```
+
+`fetch()` is still being built on the `v1-rewrite` branch; this section will show it before
+1.0.0 is released.
 
 ## [0.1.0] - 2024-01-10
 
