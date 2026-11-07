@@ -12,7 +12,7 @@ from tr_news_scraper import __version__
 from tr_news_scraper._http import Http, HttpConfig
 from tr_news_scraper.errors import HostNotAllowed
 
-from .conftest import START
+from .conftest import START, FakeClock
 
 PAGE = "https://news.example.com/haber/deprem-123"
 ALLOWED = {"news.example.com"}
@@ -118,13 +118,14 @@ def test_the_allow_list_ignores_letter_case(
 
 
 def test_the_response_records_status_url_headers_and_fetch_time(
-    make_http: Callable[..., Http], requests_mock: Mocker
+    make_http: Callable[..., Http], requests_mock: Mocker, clock: FakeClock
 ) -> None:
     requests_mock.get(PAGE, text="ok", headers={"Content-Type": "text/plain"})
     response = make_http().get(PAGE, allowed_hosts=ALLOWED)
     assert (response.status, response.url, response.content) == (200, PAGE, b"ok")
     assert response.headers["content-type"] == "text/plain"
-    assert response.fetched_at == START
+    assert response.fetched_at == clock.now()
+    assert response.fetched_at > START
     assert response.from_cache is False
 
 

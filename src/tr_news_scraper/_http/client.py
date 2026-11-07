@@ -20,6 +20,7 @@ import requests
 
 from tr_news_scraper import __version__
 from tr_news_scraper._http.clock import Clock, SystemClock
+from tr_news_scraper._http.pacing import HostPacer
 from tr_news_scraper._http.robots import RobotsPolicy
 from tr_news_scraper._http.safety import check_url
 from tr_news_scraper.errors import RobotsDisallowed
@@ -97,6 +98,7 @@ class Http:
             {"User-Agent": self.config.user_agent, "Accept-Language": ACCEPT_LANGUAGE}
         )
         self._robots = RobotsPolicy(self._fetch_robots, self._clock)
+        self._pacer = HostPacer(self._clock)
         self._override_warned: set[str] = set()
         self._warn_lock = threading.Lock()
 
@@ -106,16 +108,19 @@ class Http:
         Raises ``HostNotAllowed`` or ``RobotsDisallowed`` before any request to ``url``.
         """
         check_url(url, allowed_hosts)
+        interval = self.config.min_interval
         if not self.config.obey_robots:
             self._warn_override_once(url)
         elif not self._robots.allows(url):
             logger.warning("robots.txt disallows %s", url)
             raise RobotsDisallowed(url)
-        return self._send(url, accept)
+        else:
+            interval = max(interval, self._robots.crawl_delay(url) or 0.0)
+        return self._send(url, accept, interval)
 
     def _fetch_robots(self, robots_url: str) -> tuple[int | None, bytes]:
         try:
-            response = self._send(robots_url, "text/plain")
+            response = self._send(robots_url, "text/plain", self.config.min_interval)
         except requests.RequestException:
             return None, b""
         return response.status, response.content
@@ -131,18 +136,20 @@ class Http:
             host,
         )
 
-    def _send(self, url: str, accept: str) -> Response:
-        reply = self._session.get(
-            url,
-            headers={"Accept": accept},
-            timeout=(self.config.connect_timeout, self.config.read_timeout),
-            allow_redirects=False,
-        )
+    def _send(self, url: str, accept: str, interval: float) -> Response:
+        with self._pacer.turn(urlsplit(url).hostname or "", interval):
+            reply = self._session.get(
+                url,
+                headers={"Accept": accept},
+                timeout=(self.config.connect_timeout, self.config.read_timeout),
+                allow_redirects=False,
+            )
+            content = reply.content
         return Response(
             url=reply.url,
             status=reply.status_code,
             headers={name.lower(): value for name, value in reply.headers.items()},
-            content=reply.content,
+            content=content,
             fetched_at=self._clock.now(),
         )
 
