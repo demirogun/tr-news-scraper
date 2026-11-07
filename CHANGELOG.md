@@ -61,6 +61,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `SearchFailed` lists the reasons.
   - Ctrl+C stops every outlet before its next request, on Windows too.
   - The result records what was searched, when, and with which version.
+- `fetch()`, which downloads the articles `search()` found and adds each one's text, author and
+  publication time:
+
+  ```python
+  from tr_news_scraper import fetch, search
+
+  fetched = fetch(search(["deprem"], "2023-02-01", "2023-03-01"))
+  fetched.articles  # search's columns plus published, author, text, text_matched, copy_group, ...
+  print(fetched)  # what each outlet read, and what failed
+  ```
+
+  - Text comes from trafilatura's general extractor, not per-site parsers, with its precision
+    setting. On 33 test pages it kept weather widgets and share buttons out of the four texts
+    they had crept into, and left the other 29 unchanged.
+  - Search can date most archives only to the month, so `fetch()` settles the range from each
+    page's original publication time. Articles published outside the range move to
+    `fetched.outside` rather than disappearing.
+  - Copies of one story, such as the same wire copy in several outlets, share a `copy_group`
+    number: at least 80% of the shorter text's 8-word phrases, published at most 3 days apart.
+    Nothing is removed, so counts can be corrected without losing anything.
+  - Each outlet's pages are read one at a time, a second apart, and the outlets run together.
+    Only what each page says is kept in your cache, not the page, so running the same call again
+    continues where it stopped, even after Ctrl+C. `offline=True` reads only from the cache, and
+    `refresh=True` downloads everything again.
+  - An article that can't be read keeps the reason in its `error` column, such as "robots.txt
+    disallows it". `FetchFailed` is raised only when no article could be read.
+  - It also takes a DataFrame with `outlet` and `url` columns, such as a filtered
+    `result.articles`, and an optional `progress` callback.
 - `coverage()`, which lists what each outlet's archive covers without making a request.
   `coverage(check=True)` also checks every archive now, with two requests per outlet.
 - `tr_news_scraper.outlets`, the news archives 1.0 reads, described as data you can extend:
@@ -81,8 +109,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     blocked by robots.txt, refused by the site, or failed.
   - You can add an outlet of your own by writing what it is, not code:
     `MonthlySitemap(id=..., name=..., index=..., month_file=...)`.
-  - Every week, GitHub Actions checks each built-in outlet against its real archive. When one
-    breaks, the check opens an issue in this repository and closes it once the outlet works again.
+  - Milliyet articles that move to its `uzmanpara.milliyet.com.tr` section are followed; that
+    host's robots.txt allows them.
+  - Every week, GitHub Actions checks each built-in outlet against its real archive, and checks
+    that its newest articles can still be read. When one breaks, the check opens an issue in this
+    repository and closes it once the outlet works again.
 
 ### Changed
 - Requires Python 3.12 or newer. Python 3.10 reached end of life in October 2026, and the exact
@@ -96,6 +127,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   database of its own.
 - pandas stays a dependency, from version 2.2.3 (pandas 3 included). Importing tr_news_scraper
   doesn't import it: it loads when the first result table is built.
+- trafilatura (2.3.1 or newer) replaces newspaper3k for reading article pages. It loads on the
+  first extraction, and it only ever reads pages tr-news-scraper downloaded itself: its own
+  downloader is never used. It raises the minimum lxml to 6.1.3 and urllib3 to 2.8.
 
 ### Removed
 - `NewsScraper` and the `tr_news_scraper.tr_news_scraper` module. Importing it now raises an
@@ -128,14 +162,25 @@ range, and `fetch()`, which downloads the text of the articles you keep. Both re
 robots.txt. Instead of a page limit, you give the date range:
 
 ```python
-from tr_news_scraper import search
+from tr_news_scraper import fetch, search
 
 result = search(["deprem"], "2023-02-01", "2023-03-01")
-df = result.articles  # outlet, month, day, title, url, matched, reasons, lastmod, source
+df = result.articles  # every match: outlet, month, day, title, url, matched, reasons, ...
+
+fetched = fetch(result)  # or fetch(df[df.outlet == "star"]) for a subset
+df = fetched.articles  # with text, author and the publication time
 ```
 
-`fetch()` is still being built on the `v1-rewrite` branch; this section will show it before
-1.0.0 is released.
+The columns 0.1.0 returned map like this:
+- `title` and `url` keep their names.
+- `text` → `text`, and `authors` → `author`, after `fetch()`.
+- `publish_date` and `meta_published_date` → `published`, after `fetch()`. In 0.1.0's last live
+  run `publish_date` was empty on every article.
+- `date`, the date on the search page → `day`, or `month` for archives that date only to the
+  month.
+- `keyword` → `matched`, which lists every keyword the article matched.
+- `keywords`, `top_img`, `meta_img`, `meta_url`, `meta_description` and `meta_keywords` are gone.
+  1.0 downloads no images and doesn't guess keywords from the text.
 
 ## [0.1.0] - 2024-01-10
 
