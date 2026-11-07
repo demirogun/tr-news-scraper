@@ -281,6 +281,19 @@ def detail_of(run: OutletRun) -> str:
     return "; ".join(sentences)
 
 
+def http_counts(outlet: Outlet, stats: Mapping[str, HostStats]) -> dict[str, int | bool]:
+    """The http layer's counts for every host of ``outlet``, added up. ``errors`` counts
+    failed and refused requests."""
+    hosts = [stats[host] for host in sorted(outlet.hosts) if host in stats]
+    return {
+        "requests": sum(host.requests for host in hosts),
+        "cache_hits": sum(host.cache_hits for host in hosts),
+        "retries": sum(host.retries for host in hosts),
+        "errors": sum(host.errors + host.blocked for host in hosts),
+        "robots_override": any(host.robots_override for host in hosts),
+    }
+
+
 def report_frame(
     runs: Sequence[OutletRun],
     articles: Mapping[str, int],
@@ -295,7 +308,6 @@ def report_frame(
 
     records = []
     for run in runs:
-        hosts = [stats[host] for host in sorted(run.outlet.hosts) if host in stats]
         records.append(
             {
                 "outlet": run.outlet.id,
@@ -309,11 +321,7 @@ def report_frame(
                 "unconfirmed": run.unconfirmed,
                 "dates": "day" if isinstance(run.outlet, SiteSearch) else "month",
                 "detail": detail_of(run),
-                "requests": sum(host.requests for host in hosts),
-                "cache_hits": sum(host.cache_hits for host in hosts),
-                "retries": sum(host.retries for host in hosts),
-                "errors": sum(host.errors + host.blocked for host in hosts),
-                "robots_override": any(host.robots_override for host in hosts),
+                **http_counts(run.outlet, stats),
             }
         )
     columns: dict[str, pd.Series] = {}

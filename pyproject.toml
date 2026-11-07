@@ -73,8 +73,8 @@ target-version = "py312"
 # DTZ no naive datetimes, T20 no print, PT pytest style, SIM simplify, RUF ruff-specific
 select = ["E", "W", "F", "I", "B", "UP", "S", "BLE", "DTZ", "T20", "PT", "SIM", "RUF"]
 # Turkish text is this project's subject: dotless ı is a letter here, not a lookalike of i, and
-# news headlines use typographic apostrophes.
-allowed-confusables = ["ı", "’", "ʼ"]
+# news headlines use typographic apostrophes and en dashes. Reports count with "×".
+allowed-confusables = ["ı", "’", "ʼ", "–", "×"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "T20"]          # tests may assert and print diagnostics
