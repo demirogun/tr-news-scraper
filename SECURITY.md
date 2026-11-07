@@ -17,6 +17,14 @@ Include the affected version, what an attacker could do, and steps or a proof of
 reproduce it. We'll confirm we received your report, keep you updated while we work on a fix, and
 credit you in the release notes unless you'd rather stay anonymous.
 
+## What the library does to stay safe
+
+- Every request goes to an HTTPS page on a host the outlet allows. Redirects are checked again at
+  every hop, and URLs that name private or reserved network addresses are refused.
+- XML from websites is parsed with entity expansion, DTD loading and network access turned off.
+- Response sizes are capped after decompression, so a compression bomb is stopped early.
+- Requests are stateless: no cookies are stored or sent.
+
 ## Dependencies
 
 CI audits every locked dependency for known vulnerabilities and fails if one is found. Dependabot
