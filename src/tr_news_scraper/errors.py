@@ -79,6 +79,17 @@ class SearchFailed(TrNewsError):
         self.failures = dict(failures)
 
 
+class FetchFailed(TrNewsError):
+    """No article could be read, so there is nothing to return. ``failures`` maps each outlet's
+    id to its most common reason."""
+
+    def __init__(self, failures: Mapping[str, str], hint: str | None = None) -> None:
+        lines = [f"  {outlet}: {reason}" for outlet, reason in failures.items()]
+        message = ["no article could be read:", *lines, *([hint] if hint else [])]
+        super().__init__("\n".join(message))
+        self.failures = dict(failures)
+
+
 class RequestFailed(HttpError):
     """Retries ran out, or the server answered with an error that retrying can't fix."""
 
