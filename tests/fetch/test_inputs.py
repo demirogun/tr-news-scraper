@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from requests_mock import Mocker
 
+from tests.fetch.conftest import serve_page
 from tr_news_scraper._fetch import _fetch
 from tr_news_scraper._http import Http
 from tr_news_scraper.outlets import MonthlySitemap
@@ -93,3 +94,73 @@ def test_an_empty_table_makes_no_request(http: Http, requests_mock: Mocker) -> N
     )
     assert (len(result.articles), len(result.report)) == (0, 0)
     assert requests_mock.call_count == 0
+
+
+def test_a_tables_day_and_title_columns_get_their_types(http: Http, requests_mock: Mocker) -> None:
+    url = "https://www.star.com.tr/yasam/a-haber-1/"
+    serve_page(requests_mock, url, "star")
+    rows = pd.DataFrame({"outlet": ["star"], "url": [url], "day": ["2023-02-12"], "title": [None]})
+    result = _fetch(
+        rows,
+        start=None,
+        end=None,
+        outlets=None,
+        progress=None,
+        http=http,
+        now=NOW,
+        offline=False,
+        refresh=False,
+    )
+    assert str(result.articles["day"].dtype) == "datetime64[ns]"
+    assert result.articles.loc[0, "day"] == pd.Timestamp(2023, 2, 12)
+    assert str(result.articles["title"].dtype) == "string"
+    assert (
+        result.articles.loc[0, "title"]
+        == "Dünyanın en berrak göllerinden biriydi, deprem sonrası çamura bulandı"
+    )
+
+
+def test_a_day_that_isnt_a_date_is_refused(http: Http) -> None:
+    rows = table(outlet=["star"], url=["https://www.star.com.tr/a/"], day=["dün"])
+    with pytest.raises(ValueError, match="the day column must hold dates, such as 2023-02-12"):
+        check(http, rows)
+
+
+def test_keywords_fill_text_matched_for_a_table(http: Http, requests_mock: Mocker) -> None:
+    url = "https://www.star.com.tr/yasam/a-haber-1/"
+    serve_page(requests_mock, url, "star")
+    rows = table(outlet=["star"], url=[url])
+    result = _fetch(
+        rows,
+        keywords=["deprem", "sel"],
+        start=None,
+        end=None,
+        outlets=None,
+        progress=None,
+        http=http,
+        now=NOW,
+        offline=False,
+        refresh=False,
+    )
+    assert result.keywords == ("deprem", "sel")
+    assert result.articles.loc[0, "text_matched"] == "deprem"
+
+
+def test_keywords_are_checked_like_searchs(http: Http) -> None:
+    rows = table(outlet=["star"], url=["https://www.star.com.tr/a/"])
+    with pytest.raises(ValueError, match="too short"):
+        check(http, rows, keywords=["a"])
+
+
+def test_a_day_column_with_time_zones_is_read_in_turkiye() -> None:
+    from tr_news_scraper._fetch import _typed
+
+    rows = pd.DataFrame(
+        {
+            "outlet": ["star"],
+            "url": ["https://www.star.com.tr/a/"],
+            "day": [pd.Timestamp("2023-02-11 22:30", tz="UTC")],
+        }
+    )
+    assert _typed(rows).loc[0, "day"] == pd.Timestamp(2023, 2, 12)
+    assert str(_typed(rows)["day"].dtype) == "datetime64[ns]"

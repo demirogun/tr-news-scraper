@@ -13,10 +13,11 @@ from typing import TYPE_CHECKING, Any
 
 from tr_news_scraper._extract import Extracted, extract, extractor, from_json, to_json
 from tr_news_scraper._http import CachePolicy, Http, HttpConfig
-from tr_news_scraper._search import in_threads, parse_range, resolve_outlets
-from tr_news_scraper._table import SearchResult
+from tr_news_scraper._search import in_threads, parse_keywords, parse_range, resolve_outlets
+from tr_news_scraper._table import DAY_DTYPE, SearchResult
 from tr_news_scraper._version import __version__
 from tr_news_scraper.errors import FetchFailed, HttpError
+from tr_news_scraper.matching import KeywordQuery
 from tr_news_scraper.outlets import Outlet
 from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._scan import describe
@@ -153,6 +154,7 @@ def _duration(seconds: float) -> str:
 def fetch(
     articles: SearchResult | pd.DataFrame,
     *,
+    keywords: str | Iterable[str] | None = None,
     start: date | str | None = None,
     end: date | str | None = None,
     outlets: str | Outlet | Iterable[str | Outlet] | None = None,
@@ -177,6 +179,8 @@ def fetch(
     Args:
         articles: A SearchResult, or a DataFrame with ``outlet`` and ``url`` columns, such as a
             filtered ``result.articles``.
+        keywords: The keywords to look for in a DataFrame's texts (``text_matched``). A
+            SearchResult brings its own.
         start: A DataFrame's first day. With ``end``, rows whose page dates them outside the
             range move to ``outside``. A SearchResult brings its own range.
         end: The day after a DataFrame's last day.
@@ -201,6 +205,7 @@ def fetch(
     with Http(config) as http:
         return _fetch(
             articles,
+            keywords=keywords,
             start=start,
             end=end,
             outlets=outlets,
@@ -223,11 +228,12 @@ def _fetch(
     now: datetime,
     offline: bool,
     refresh: bool,
+    keywords: str | Iterable[str] | None = None,
 ) -> FetchResult:
     """``fetch()`` with the client and the current time (Europe/Istanbul) given, for tests."""
     from tr_news_scraper._fetched import build_fetch_result
 
-    table, keywords, first, after, chosen = _inputs(articles, start, end, outlets)
+    table, keywords, first, after, chosen = _inputs(articles, keywords, start, end, outlets)
     rows: dict[str, list[tuple[int, str]]] = {}
     for position, (outlet, url) in enumerate(zip(table["outlet"], table["url"], strict=True)):
         rows.setdefault(str(outlet), []).append((position, str(url)))
@@ -262,6 +268,7 @@ def _fetch(
 
 def _inputs(
     articles: Any,
+    keywords: str | Iterable[str] | None,
     start: date | str | None,
     end: date | str | None,
     outlets: str | Outlet | Iterable[str | Outlet] | None,
@@ -270,10 +277,10 @@ def _inputs(
     import pandas as pd
 
     if isinstance(articles, SearchResult):
-        if start is not None or end is not None or outlets is not None:
+        if any(value is not None for value in (keywords, start, end, outlets)):
             raise ValueError(
-                "a SearchResult brings its own range and outlets; to choose others, fetch its "
-                "articles table instead"
+                "a SearchResult brings its own keywords, range and outlets; to choose others, "
+                "fetch its articles table instead"
             )
         return articles.articles, articles.keywords, articles.start, articles.end, articles.outlets
     if not isinstance(articles, pd.DataFrame):
@@ -291,7 +298,29 @@ def _inputs(
     unknown = sorted({str(outlet) for outlet in articles["outlet"]} - {o.id for o in chosen})
     if unknown:
         raise ValueError(f"no outlet definition for {', '.join(unknown)}; pass it in outlets")
-    return articles, (), first, after, chosen
+    words = () if keywords is None else KeywordQuery(parse_keywords(keywords)).keywords
+    return _typed(articles), words, first, after, chosen
+
+
+def _typed(articles: pd.DataFrame) -> pd.DataFrame:
+    """A table whose ``day`` holds dates and whose ``title`` holds strings, as in search's, so
+    tables read from files or built by hand work the same (F1)."""
+    import pandas as pd
+
+    if "day" not in articles.columns and "title" not in articles.columns:
+        return articles
+    table = articles.copy()
+    if "day" in table.columns:
+        try:
+            days = pd.to_datetime(table["day"])
+        except (ValueError, TypeError) as error:
+            raise ValueError("the day column must hold dates, such as 2023-02-12") from error
+        if days.dt.tz is not None:
+            days = days.dt.tz_convert(ISTANBUL).dt.tz_localize(None)
+        table["day"] = days.dt.normalize().astype(DAY_DTYPE)
+    if "title" in table.columns:
+        table["title"] = table["title"].astype("string")
+    return table
 
 
 def _commonest_error(run: FetchRun) -> str:

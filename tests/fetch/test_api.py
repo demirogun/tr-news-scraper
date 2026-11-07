@@ -65,10 +65,18 @@ def test_a_search_result_brings_its_own_range_and_outlets(http: Http) -> None:
     found = SearchResult(
         empty, empty, empty, ("deprem",), date(2023, 2, 1), date(2023, 3, 1), (), SEARCHED, "1"
     )
-    with pytest.raises(ValueError, match="a SearchResult brings its own range and outlets"):
+    with pytest.raises(
+        ValueError, match="a SearchResult brings its own keywords, range and outlets"
+    ):
         fetched(http, found, start="2023-02-01", end="2023-03-01")
-    with pytest.raises(ValueError, match="a SearchResult brings its own range and outlets"):
+    with pytest.raises(
+        ValueError, match="a SearchResult brings its own keywords, range and outlets"
+    ):
         fetched(http, found, outlets=["star"])
+    with pytest.raises(
+        ValueError, match="a SearchResult brings its own keywords, range and outlets"
+    ):
+        fetched(http, found, keywords=["sel"])
 
 
 def test_when_nothing_could_be_read_fetch_fails_with_each_outlets_reason(
