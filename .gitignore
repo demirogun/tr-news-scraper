@@ -150,3 +150,11 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Internal planning artifacts from the spec-driven workflow: local only.
+# Never committed, pushed, packaged or archived; CHANGELOG.md is the public record.
+/SPEC.md
+/SPEC-*.md
+/docs/ideas/
+/docs/intent/
+/tasks/
