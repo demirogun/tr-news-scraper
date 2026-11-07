@@ -79,6 +79,8 @@ MILLIYET = SiteSearch(
     title=f".//strong[{_has_class('news__title')}]",
     date=f".//span[{_has_class('news__date')}]",
     date_format="%d.%m.%Y",
+    # Links to /uzmanpara/ redirect to this section host, whose robots.txt allows articles.
+    extra_hosts=frozenset({"uzmanpara.milliyet.com.tr"}),
     notes=(
         "Milliyet's search returns only its newest 10,000 results for each keyword; for a "
         "frequent word like 'deprem' that reaches back about two and a half years."

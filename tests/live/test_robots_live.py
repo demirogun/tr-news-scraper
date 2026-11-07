@@ -21,6 +21,10 @@ ALLOWED = {
     "Akşam": "https://www.aksam.com.tr/sitemaps/posts-2023-02.xml",
     "Sözcü": "https://www.sozcu.com.tr/feeds/sitemapposts?year=2024&month=6",
     "Milliyet": "https://www.milliyet.com.tr/api/search/searchcontentloadmore?query=deprem&page=1",
+    "Milliyet Uzmanpara": (
+        "https://uzmanpara.milliyet.com.tr/uzmanpara/"
+        "deprem-tarlasini-ikiye-bolmustu-ucurum-kenarinda-hasat-yapiyorlar-7692430"
+    ),
 }
 # Endpoints that 0.1.0 used, or that we once planned to use, and that robots.txt now forbids.
 DISALLOWED = {

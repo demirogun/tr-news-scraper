@@ -167,3 +167,16 @@ def test_the_time_left_is_said_in_seconds_minutes_or_hours() -> None:
         "40 min",
         "2.5 h",
     ]
+
+
+def test_a_milliyet_article_moved_to_its_section_host_is_read(
+    http: Http, requests_mock: Mocker
+) -> None:
+    moved = "https://www.milliyet.com.tr/uzmanpara/deprem-haberi-7692430"
+    section = "https://uzmanpara.milliyet.com.tr/uzmanpara/deprem-haberi-7692430"
+    requests_mock.get(moved, status_code=301, headers={"Location": section})
+    serve_page(requests_mock, section, "milliyet")
+    found = fetch_outlet(
+        get("milliyet"), [(0, moved)], http, refresh=False, offline=False, progress=None
+    )
+    assert found.results[0].extracted.error is None

@@ -245,3 +245,9 @@ def test_a_milliyet_scan_reports_where_its_results_end(http: Http, requests_mock
     [gap] = found.gaps
     assert (gap.reason, gap.keyword, gap.reached) == ("window", "deprem", date(2026, 11, 6))
     assert "nothing older than 2026-11-06" in gap.detail
+
+
+def test_milliyet_allows_its_uzmanpara_section_host() -> None:
+    # Milliyet's /uzmanpara/ links redirect there; its robots.txt allows article paths
+    # (checked 2026-11-08, and weekly by the live robots test).
+    assert milliyet().hosts == {"www.milliyet.com.tr", "uzmanpara.milliyet.com.tr"}
