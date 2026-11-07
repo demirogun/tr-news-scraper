@@ -45,8 +45,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   from tr_news_scraper import search
 
   result = search(["deprem", "tsunami"], "2023-02-01", "2023-03-01")
-  result.articles   # one row per article: outlet, month, day, title, url, matched, reasons, ...
-  print(result)     # what each outlet found, and why some found nothing
+  result.articles  # one row per article: outlet, month, day, title, url, matched, reasons, ...
+  print(result)  # what each outlet found, and why some found nothing
   ```
 
   - An article is kept when its headline or URL names a keyword, and each row says why. A URL
@@ -131,7 +131,7 @@ robots.txt. Instead of a page limit, you give the date range:
 from tr_news_scraper import search
 
 result = search(["deprem"], "2023-02-01", "2023-03-01")
-df = result.articles   # outlet, month, day, title, url, matched, reasons, lastmod, source
+df = result.articles  # outlet, month, day, title, url, matched, reasons, lastmod, source
 ```
 
 `fetch()` is still being built on the `v1-rewrite` branch; this section will show it before
