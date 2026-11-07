@@ -33,6 +33,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     vowel need their other form as a second keyword (`kayıp` → `kaybı`); and some outlets replace
     "ı" in URLs, so their URLs can miss words their headlines contain.
 
+- `tr_news_scraper.outlets`, the news archives 1.0 reads, described as data you can extend:
+  - Six built-in outlets publish monthly sitemaps that their robots.txt allows:
+    - Cumhuriyet, from 1962 (every month since July 2008);
+    - Euronews Türkçe, from 2010;
+    - TRT Haber, from July 2016;
+    - Star, from September 2012, with headlines;
+    - Akşam, from December 2010;
+    - Sözcü, from December 2023, when its new website started.
+  - Only the months an outlet's own sitemap index lists are ever requested. Anything that couldn't
+    be read is reported with the reason: before the archive starts, blocked by robots.txt, refused
+    by the site, or failed.
+  - You can add an outlet of your own by writing what it is, not code:
+    `MonthlySitemap(id=..., name=..., index=..., month_file=...)`.
+
 ### Changed
 - Requires Python 3.12 or newer. Python 3.10 reached end of life in October 2026, and the exact
   pins in 0.1.0 could not be installed on Python 3.13 or newer.
