@@ -634,6 +634,12 @@ wheels = [
 name = "tr-news-scraper"
 version = "1.0.0.dev0"
 source = { editable = "." }
+dependencies = [
+    { name = "certifi" },
+    { name = "idna" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -646,6 +652,12 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "certifi", specifier = ">=2026.10.18" },
+    { name = "idna", specifier = ">=3.15,<4" },
+    { name = "requests", specifier = ">=2.33,<3" },
+    { name = "urllib3", specifier = ">=2.7,<3" },
+]
 
 [package.metadata.requires-dev]
 dev = [
