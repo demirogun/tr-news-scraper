@@ -9,18 +9,22 @@ from __future__ import annotations
 import html
 import re
 import unicodedata
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit, urlunsplit
 
-from tr_news_scraper.outlets import Month, Outlet
+from tr_news_scraper.outlets import Month, Outlet, SiteSearch
 from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._model import Gap
+from tr_news_scraper.outlets._search import query_text
 
 if TYPE_CHECKING:
     import pandas as pd
+
+    from tr_news_scraper._http import HostStats
 
 ARTICLE_COLUMNS = (
     "outlet",
@@ -34,8 +38,25 @@ ARTICLE_COLUMNS = (
     "source",
 )
 GAP_COLUMNS = ("outlet", "reason", "month", "keyword", "detail", "url")
+REPORT_TEXT = ("outlet", "name", "method", "status", "coverage")
+REPORT_COUNTS = ("articles", "candidates", "trimmed", "unconfirmed")
+HTTP_COUNTS = ("requests", "cache_hits", "retries", "errors")
+REPORT_COLUMNS = (
+    *REPORT_TEXT,
+    *REPORT_COUNTS,
+    "dates",
+    "detail",
+    *HTTP_COUNTS,
+    "robots_override",
+)
 DAY_DTYPE = "datetime64[ns]"
 TIME_DTYPE = "datetime64[ns, Europe/Istanbul]"
+DATES_NOTE = (
+    "Sitemap outlets are dated to the month; fetch() reads each article's publication time."
+)
+FAILURE_REASONS = frozenset({"robots", "blocked", "failed"})
+COVERAGE_REASONS = frozenset({"before-archive", "after-archive", "not-in-archive", "window"})
+MAX_DETAILS = 3
 
 _SPACE = re.compile(r"\s+")
 _DEFAULT_PORTS = {"https": 443, "http": 80}
@@ -192,3 +213,175 @@ def _times(values: Sequence[date | datetime | None], dtype: str) -> pd.Series:
     return pd.Series(
         [pd.NaT if value is None else pd.Timestamp(value) for value in values], dtype=dtype
     )
+
+
+def status_of(run: OutletRun) -> str:
+    """``failed`` when nothing could be read, ``incomplete`` when some files or pages failed,
+    otherwise ``ok`` (S8)."""
+    if run.failure is not None:
+        return "failed"
+    if any(gap.reason in FAILURE_REASONS for gap in run.gaps):
+        return "incomplete"
+    return "ok"
+
+
+def coverage_of(run: OutletRun, keywords: Sequence[str], start: date, end: date) -> str:
+    """How much of [start, end) the outlet's archive holds: ``full``, ``partial``, ``none``, or
+    ``unknown`` when the outlet failed (S8)."""
+    if run.failure is not None:
+        return "unknown"
+    limits = [gap for gap in run.gaps if gap.reason in COVERAGE_REASONS]
+    if not limits:
+        return "full"
+    if isinstance(run.outlet, SiteSearch):
+        searched = {query_text(keyword) for keyword in keywords} - {""}
+        stopped = {
+            query_text(gap.keyword or "")
+            for gap in limits
+            if gap.reached is None or gap.reached >= end
+        }
+        return "none" if searched <= stopped else "partial"
+    outside = {gap.month for gap in limits}
+    return "none" if set(Month.span(start, end)) <= outside else "partial"
+
+
+def detail_of(run: OutletRun) -> str:
+    """Why the outlet has gaps, in at most three distinct sentences; the failure, if it failed."""
+    if run.failure is not None:
+        return run.failure
+    sentences = list(dict.fromkeys(gap.detail for gap in run.gaps))
+    if len(sentences) > MAX_DETAILS:
+        sentences = [*sentences[:MAX_DETAILS], f"and {len(sentences) - MAX_DETAILS} more"]
+    return "; ".join(sentences)
+
+
+def report_frame(
+    runs: Sequence[OutletRun],
+    articles: Mapping[str, int],
+    keywords: Sequence[str],
+    start: date,
+    end: date,
+    stats: Mapping[str, HostStats],
+) -> pd.DataFrame:
+    """One row per outlet, in the order searched. The http counts add up every host of the
+    outlet; ``errors`` counts failed and refused requests."""
+    import pandas as pd
+
+    records = []
+    for run in runs:
+        hosts = [stats[host] for host in sorted(run.outlet.hosts) if host in stats]
+        records.append(
+            {
+                "outlet": run.outlet.id,
+                "name": run.outlet.name,
+                "method": run.outlet.method,
+                "status": status_of(run),
+                "coverage": coverage_of(run, keywords, start, end),
+                "articles": articles.get(run.outlet.id, 0),
+                "candidates": run.candidates,
+                "trimmed": run.trimmed,
+                "unconfirmed": run.unconfirmed,
+                "dates": "day" if isinstance(run.outlet, SiteSearch) else "month",
+                "detail": detail_of(run),
+                "requests": sum(host.requests for host in hosts),
+                "cache_hits": sum(host.cache_hits for host in hosts),
+                "retries": sum(host.retries for host in hosts),
+                "errors": sum(host.errors + host.blocked for host in hosts),
+                "robots_override": any(host.robots_override for host in hosts),
+            }
+        )
+    columns: dict[str, pd.Series] = {}
+    for name in REPORT_COLUMNS:
+        values = [record[name] for record in records]
+        if name in (*REPORT_COUNTS, *HTTP_COUNTS):
+            columns[name] = pd.Series(values, dtype="int64")
+        elif name == "robots_override":
+            columns[name] = pd.Series(values, dtype="bool")
+        else:
+            columns[name] = pd.Series(values, dtype="string")
+    return pd.DataFrame(columns)
+
+
+@dataclass(frozen=True, eq=False, repr=False)
+class SearchResult:
+    """What ``search()`` found: the articles, a report on every outlet, and every gap.
+
+    ``print(result)`` shows a short summary. The other fields record what was searched and
+    when, so a dataset built from the result can say where it came from.
+    """
+
+    articles: pd.DataFrame
+    """One row per article; see the documentation for the columns."""
+    report: pd.DataFrame
+    """One row per outlet, in the order searched."""
+    gaps: pd.DataFrame
+    """One row per part of the range that wasn't read, and why."""
+    keywords: tuple[str, ...]
+    start: date
+    end: date
+    """The day after the last day searched."""
+    outlets: tuple[Outlet, ...]
+    searched_at: datetime
+    """When the search ran, in Europe/Istanbul."""
+    version: str
+    """The tr-news-scraper version that ran it."""
+
+    def __repr__(self) -> str:
+        return f"SearchResult({self._headline()})"
+
+    def __str__(self) -> str:
+        names = [str(name) for name in self.report["name"]]
+        counts = [f"{int(count):,}" for count in self.report["articles"]]
+        name_width = max(map(len, names), default=0)
+        count_width = max(map(len, counts), default=0)
+        lines = [self._headline()]
+        for name, count, status, detail in zip(
+            names, counts, self.report["status"], self.report["detail"], strict=True
+        ):
+            note = detail if status == "ok" else f"{status}: {detail}"
+            lines.append(f"  {name:<{name_width}}  {count:>{count_width}}  {note}".rstrip())
+        if bool(self.articles["day"].isna().any()):
+            lines.append(DATES_NOTE)
+        return "\n".join(lines)
+
+    def _headline(self) -> str:
+        last = self.end - timedelta(days=1)
+        days = str(self.start) if last == self.start else f"{self.start} to {last}"
+        found = len(self.articles)
+        searched = len(self.report)
+        with_articles = int((self.report["articles"] > 0).sum())
+        return (
+            f"{', '.join(self.keywords)}, {days}: {found:,} {_plural(found, 'article')} "
+            f"from {with_articles} of {searched} {_plural(searched, 'outlet')}"
+        )
+
+
+def build_result(
+    runs: Sequence[OutletRun],
+    *,
+    keywords: Sequence[str],
+    start: date,
+    end: date,
+    outlets: Sequence[Outlet],
+    searched_at: datetime,
+    version: str,
+    stats: Mapping[str, HostStats],
+) -> SearchResult:
+    """Merge every outlet's rows into one table, and report on each outlet."""
+    order = {outlet.id: position for position, outlet in enumerate(outlets)}
+    rows = merge((row for run in runs for row in run.rows), keywords, order)
+    return SearchResult(
+        articles=articles_frame(rows),
+        report=report_frame(runs, Counter(row.outlet for row in rows), keywords, start, end, stats),
+        gaps=gaps_frame(runs),
+        keywords=tuple(keywords),
+        start=start,
+        end=end,
+        outlets=tuple(outlets),
+        searched_at=searched_at,
+        version=version,
+    )
+
+
+def _plural(count: int, word: str) -> str:
+    return word if count == 1 else f"{word}s"
