@@ -21,6 +21,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - newspaper3k, nltk, Pillow and the other pinned dependencies of 0.1.0.
 - `setup.py` and `requirements.txt`.
 
+### Security
+- Dropped newspaper3k, nltk and Pillow. 0.1.0's 31 exact pins carried 108 known advisories (8
+  critical), and Pillow's image decoders were reachable because newspaper3k downloads page images.
+- CI audits every locked dependency with pip-audit and fails on any known vulnerability; Dependabot
+  proposes dependency and GitHub Actions updates weekly.
+- Added SECURITY.md describing how to report vulnerabilities privately.
+
 ### Migrating from 0.1.0
 0.1.0 scraped the search pages of five outlets and returned a pandas DataFrame:
 
