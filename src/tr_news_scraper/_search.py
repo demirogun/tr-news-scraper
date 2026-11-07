@@ -4,13 +4,24 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from concurrent.futures import FIRST_EXCEPTION, Future, ThreadPoolExecutor, wait
 from contextlib import suppress
 from datetime import date, datetime, time, timedelta
+from pathlib import Path
 
-from tr_news_scraper._http import Http
-from tr_news_scraper._table import OutletRun, Row, clean_lastmod, clean_title, clean_url
-from tr_news_scraper.errors import OutletFailed
+from tr_news_scraper._http import Http, HttpConfig
+from tr_news_scraper._table import (
+    OutletRun,
+    Row,
+    SearchResult,
+    build_result,
+    clean_lastmod,
+    clean_title,
+    clean_url,
+)
+from tr_news_scraper._version import __version__
+from tr_news_scraper.errors import OutletFailed, SearchFailed
 from tr_news_scraper.matching import KeywordQuery, tr_lower
 from tr_news_scraper.outlets import (
     Candidate,
@@ -28,6 +39,12 @@ logger = logging.getLogger("tr_news_scraper.search")
 
 _DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 _OUTLET_KINDS = (MonthlySitemap, SiteSearch)
+_WAIT_STEP = 0.1
+"""Seconds the main thread waits on the workers at a time: on Windows, Ctrl+C reaches a waiting
+thread only when its wait returns."""
+_OFFLINE_HINT = (
+    "Nothing for this search is in the cache yet: search once without offline=True to fill it."
+)
 
 
 def parse_keywords(keywords: str | Iterable[str]) -> tuple[str, ...]:
@@ -182,3 +199,126 @@ def run_outlet(
             len(run.gaps),
         )
     return run
+
+
+def search(
+    keywords: str | Iterable[str],
+    start: date | str,
+    end: date | str,
+    *,
+    outlets: str | Outlet | Iterable[str | Outlet] | None = None,
+    contact: str | None = None,
+    obey_robots: bool = True,
+    offline: bool = False,
+    cache_dir: str | Path | None = None,
+) -> SearchResult:
+    """Find news articles whose headline or URL names any of ``keywords``, published from
+    ``start`` up to the day before ``end``.
+
+    >>> result = search(["deprem", "tsunami"], "2023-02-01", "2023-03-01")
+    >>> result.articles   # one row per article: outlet, month, day, title, url, matched, ...
+    >>> print(result)     # what each outlet found, and why some found nothing
+
+    Every outlet's archive is read at the same time, one request per second per site, through
+    one client that obeys robots.txt and names itself honestly. Days are in Türkiye; a ``str``
+    keyword or outlet counts as one.
+
+    Args:
+        keywords: Words or phrases; any of them may match. ``word*`` forces prefix matching and
+            ``"word"`` an exact match.
+        start: The first day, as a ``date`` or ``"YYYY-MM-DD"``.
+        end: The day after the last day.
+        outlets: Built-in outlet ids or outlet definitions; every built-in outlet by default.
+        contact: Added to the User-Agent, such as ``"mailto:you@example.org"``.
+        obey_robots: ``False`` skips the robots.txt check, with a warning for every site. Only
+            use it when you have the site's permission.
+        offline: Answer only from the cache of earlier searches.
+        cache_dir: Where responses are cached; the user cache folder by default.
+
+    Raises:
+        ValueError: An input is invalid; nothing was requested.
+        SearchFailed: Every outlet failed.
+    """
+    config = HttpConfig(
+        contact=contact,
+        obey_robots=obey_robots,
+        cache_dir=None if cache_dir is None else Path(cache_dir),
+    )
+    with Http(config) as http:
+        return _search(
+            keywords,
+            start,
+            end,
+            outlets=outlets,
+            http=http,
+            now=datetime.now(ISTANBUL),
+            offline=offline,
+        )
+
+
+def _search(
+    keywords: str | Iterable[str],
+    start: date | str,
+    end: date | str,
+    *,
+    outlets: str | Outlet | Iterable[str | Outlet] | None,
+    http: Http,
+    now: datetime,
+    offline: bool,
+) -> SearchResult:
+    """``search()`` with the client and the current time (Europe/Istanbul) given, for tests."""
+    query = KeywordQuery(parse_keywords(keywords))
+    first, after = parse_range(start, end)
+    chosen = resolve_outlets(outlets)
+    runs = _run_all(chosen, http, query, first, after, today=now.date(), offline=offline)
+    failures = {run.outlet.id: run.failure for run in runs if run.failure is not None}
+    if len(failures) == len(runs):
+        raise SearchFailed(failures, hint=_OFFLINE_HINT if offline else None)
+    return build_result(
+        runs,
+        keywords=query.keywords,
+        start=first,
+        end=after,
+        outlets=chosen,
+        searched_at=now,
+        version=__version__,
+        stats=http.stats(),
+    )
+
+
+def _run_all(
+    outlets: Sequence[Outlet],
+    http: Http,
+    query: KeywordQuery,
+    start: date,
+    end: date,
+    *,
+    today: date,
+    offline: bool,
+) -> list[OutletRun]:
+    """Run every outlet at once, one thread each (S2).
+
+    On Ctrl+C, or when a worker raises anything but ``OutletFailed``, the client is cancelled:
+    every worker stops before its next request, and the exception is raised once they have.
+    """
+    with ThreadPoolExecutor(max_workers=len(outlets), thread_name_prefix="tr-news-scraper") as pool:
+        futures = [
+            pool.submit(run_outlet, outlet, http, query, start, end, today=today, offline=offline)
+            for outlet in outlets
+        ]
+        try:
+            _wait_for(futures)
+        except BaseException:
+            http.cancel()
+            wait(futures)
+            raise
+    return [future.result() for future in futures]
+
+
+def _wait_for(futures: Sequence[Future[OutletRun]]) -> None:
+    """Wait in short steps, so Ctrl+C gets through, and raise the first worker's exception."""
+    pending = set(futures)
+    while pending:
+        done, pending = wait(pending, timeout=_WAIT_STEP, return_when=FIRST_EXCEPTION)
+        for future in done:
+            future.result()

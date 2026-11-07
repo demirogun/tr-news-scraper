@@ -6,6 +6,6 @@ to public HTTPS hosts the caller allows, and caches successful responses on disk
 """
 
 from tr_news_scraper._http.cache import CachePolicy
-from tr_news_scraper._http.client import HostStats, Http, HttpConfig, Response
+from tr_news_scraper._http.client import Cancelled, HostStats, Http, HttpConfig, Response
 
-__all__ = ["CachePolicy", "HostStats", "Http", "HttpConfig", "Response"]
+__all__ = ["CachePolicy", "Cancelled", "HostStats", "Http", "HttpConfig", "Response"]

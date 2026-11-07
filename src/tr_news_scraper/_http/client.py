@@ -21,7 +21,6 @@ from urllib.parse import urljoin, urlsplit
 import requests
 from lxml import etree
 
-from tr_news_scraper import __version__
 from tr_news_scraper._http.cache import CachedEntry, CachePolicy, DiskCache
 from tr_news_scraper._http.clock import Clock, SystemClock
 from tr_news_scraper._http.pacing import HostPacer
@@ -34,6 +33,7 @@ from tr_news_scraper._http.retry import (
 )
 from tr_news_scraper._http.robots import MAX_ROBOTS_BYTES, RobotsPolicy
 from tr_news_scraper._http.safety import check_public_https, check_url, parse_xml
+from tr_news_scraper._version import __version__
 from tr_news_scraper.errors import (
     Blocked,
     HostNotAllowed,
@@ -55,6 +55,15 @@ _UNSAFE_IN_CONTACT = frozenset("();")
 _HEADER_CHARSET = re.compile(r"charset\s*=\s*[\"']?([\w.:-]+)", re.IGNORECASE)
 _XML_ENCODING = re.compile(rb"^\s*<\?xml[^>]*\bencoding\s*=\s*[\"']([\w.:-]+)[\"']", re.IGNORECASE)
 _META_CHARSET = re.compile(rb"<meta[^>]+charset\s*=\s*[\"']?([\w.:-]+)", re.IGNORECASE)
+
+
+class Cancelled(Exception):
+    """The search was cancelled before this request. It isn't an ``HttpError``, so a scan
+    doesn't record it as a gap; search turns it back into ``KeyboardInterrupt``."""
+
+    def __init__(self, url: str) -> None:
+        super().__init__(f"cancelled before requesting {url}")
+        self.url = url
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +164,7 @@ class Http:
         self._warn_lock = threading.Lock()
         self._stats: dict[str, HostStats] = {}
         self._stats_lock = threading.Lock()
+        self._cancelled = threading.Event()
 
     def get(
         self,
@@ -171,6 +181,8 @@ class Http:
         ``NotCached`` in offline mode when the URL isn't cached. 200 responses are cached
         under ``url`` unless ``cache.no_store`` is set.
         """
+        if self._cancelled.is_set():
+            raise Cancelled(url)
         check_url(url, allowed_hosts)
         key = self._cache.key(url, accept)
         if cache.offline or cache.ttl is not None:
@@ -213,6 +225,16 @@ class Http:
             )
         return response
 
+    def cancel(self) -> None:
+        """Stop every later request attempt, in every thread, with ``Cancelled``. An attempt
+        checks after waiting for its turn on the host, so no new request starts."""
+        self._cancelled.set()
+
+    @property
+    def cancelled(self) -> bool:
+        """Whether :meth:`cancel` was called."""
+        return self._cancelled.is_set()
+
     def stats(self) -> dict[str, HostStats]:
         """A snapshot of the per-host counters."""
         with self._stats_lock:
@@ -229,6 +251,14 @@ class Http:
                 return response
             current = urljoin(current, location)
         raise RequestFailed(url, f"more than {MAX_REDIRECTS} redirects", attempts=MAX_REDIRECTS + 1)
+
+    @contextmanager
+    def _unless_cancelled(self, url: str) -> Iterator[None]:
+        """Raise ``Cancelled`` if the search was cancelled. Entered once the host's turn has
+        come, just before the request is sent."""
+        if self._cancelled.is_set():
+            raise Cancelled(url)
+        yield
 
     @contextmanager
     def _counting(self, url: str) -> Iterator[HostStats]:
@@ -302,6 +332,7 @@ class Http:
             try:
                 with (
                     self._pacer.turn(host, interval),
+                    self._unless_cancelled(url),
                     self._session.get(
                         url,
                         headers={"Accept": accept},

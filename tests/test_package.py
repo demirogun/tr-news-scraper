@@ -33,8 +33,8 @@ def test_changelog_has_the_migration_section_the_error_points_to() -> None:
     assert "Migrating from 0.1.0" in headings
 
 
-def test_public_api_is_empty_until_search_and_fetch_exist() -> None:
-    assert tr_news_scraper.__all__ == []
+def test_the_public_api_is_search_and_its_result_until_fetch_exists() -> None:
+    assert sorted(tr_news_scraper.__all__) == ["SearchResult", "__version__", "search"]
 
 
 def test_package_logger_stays_silent_unless_the_application_configures_logging() -> None:

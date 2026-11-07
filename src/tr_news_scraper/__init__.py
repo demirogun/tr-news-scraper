@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
-from importlib.metadata import version
 
-__version__ = version("tr-news-scraper")
-__all__: list[str] = []
+from tr_news_scraper._search import search
+from tr_news_scraper._table import SearchResult
+from tr_news_scraper._version import __version__
+
+__all__ = ["SearchResult", "__version__", "search"]
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
