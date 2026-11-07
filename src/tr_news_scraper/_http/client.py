@@ -8,8 +8,9 @@ import random
 import re
 import threading
 import unicodedata
-from collections.abc import Callable, Collection, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Callable, Collection, Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from http.cookiejar import DefaultCookiePolicy
 from pathlib import Path
@@ -21,6 +22,7 @@ import requests
 from lxml import etree
 
 from tr_news_scraper import __version__
+from tr_news_scraper._http.cache import CachedEntry, CachePolicy, DiskCache
 from tr_news_scraper._http.clock import Clock, SystemClock
 from tr_news_scraper._http.pacing import HostPacer
 from tr_news_scraper._http.retry import (
@@ -35,6 +37,7 @@ from tr_news_scraper._http.safety import check_public_https, check_url, parse_xm
 from tr_news_scraper.errors import (
     Blocked,
     HostNotAllowed,
+    NotCached,
     RequestFailed,
     ResponseTooLarge,
     RobotsDisallowed,
@@ -47,6 +50,7 @@ ACCEPT_LANGUAGE = "tr-TR,tr;q=0.9,en;q=0.5"
 DEFAULT_MAX_BYTES = 64 * 1024**2
 MAX_REDIRECTS = 5
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+_FETCH_ALWAYS = CachePolicy()
 _UNSAFE_IN_CONTACT = frozenset("();")
 _HEADER_CHARSET = re.compile(r"charset\s*=\s*[\"']?([\w.:-]+)", re.IGNORECASE)
 _XML_ENCODING = re.compile(rb"^\s*<\?xml[^>]*\bencoding\s*=\s*[\"']([\w.:-]+)[\"']", re.IGNORECASE)
@@ -113,6 +117,19 @@ class Response:
         return parse_xml(self.content, max_bytes=self.max_bytes, url=self.url)
 
 
+@dataclass(slots=True)
+class HostStats:
+    """What happened with one host. ``Http.stats()`` returns copies, so reports can't race it."""
+
+    requests: int = 0
+    cache_hits: int = 0
+    retries: int = 0
+    robots_blocked: int = 0
+    blocked: int = 0
+    errors: int = 0
+    robots_override: bool = False
+
+
 class Http:
     """Fetches pages from news sites, politely and safely. Use one instance per search."""
 
@@ -133,15 +150,75 @@ class Http:
         )
         self._robots = RobotsPolicy(self._fetch_robots, self._clock)
         self._pacer = HostPacer(self._clock)
+        self._cache = DiskCache(self.config.cache_dir, self.config.cache_max_bytes, self._clock)
         self._override_warned: set[str] = set()
         self._warn_lock = threading.Lock()
+        self._stats: dict[str, HostStats] = {}
+        self._stats_lock = threading.Lock()
 
-    def get(self, url: str, *, allowed_hosts: Collection[str], accept: str = "*/*") -> Response:
+    def get(
+        self,
+        url: str,
+        *,
+        allowed_hosts: Collection[str],
+        accept: str = "*/*",
+        cache: CachePolicy = _FETCH_ALWAYS,
+    ) -> Response:
         """Fetch ``url`` if the caller allows its host and the site's robots.txt allows us.
 
         Redirects are followed (at most five), and every hop is checked again. Raises
-        ``HostNotAllowed`` or ``RobotsDisallowed`` before any request to a refused URL.
+        ``HostNotAllowed`` or ``RobotsDisallowed`` before any request to a refused URL, and
+        ``NotCached`` in offline mode when the URL isn't cached. 200 responses are cached
+        under ``url`` unless ``cache.no_store`` is set.
         """
+        check_url(url, allowed_hosts)
+        key = self._cache.key(url, accept)
+        if cache.offline or cache.ttl is not None:
+            entry = self._cache.load(key, ttl=cache.ttl, any_age=cache.offline)
+            if entry is not None:
+                with self._counting(url) as stats:
+                    stats.cache_hits += 1
+                logger.debug("GET %s -> cache hit, %d bytes", url, len(entry.content))
+                return Response(
+                    url=entry.url,
+                    status=entry.status,
+                    headers=entry.headers,
+                    content=entry.content,
+                    fetched_at=entry.fetched_at,
+                    from_cache=True,
+                    max_bytes=self.config.max_bytes,
+                )
+            if cache.offline:
+                raise NotCached(url)
+        try:
+            response = self._follow(url, allowed_hosts, accept)
+        except Blocked:
+            with self._counting(url) as stats:
+                stats.blocked += 1
+            raise
+        except RequestFailed:
+            with self._counting(url) as stats:
+                stats.errors += 1
+            raise
+        if response.status == 200 and not cache.no_store:
+            self._cache.store(
+                key,
+                CachedEntry(
+                    response.url,
+                    response.status,
+                    response.headers,
+                    response.content,
+                    response.fetched_at,
+                ),
+            )
+        return response
+
+    def stats(self) -> dict[str, HostStats]:
+        """A snapshot of the per-host counters."""
+        with self._stats_lock:
+            return {host: replace(counters) for host, counters in self._stats.items()}
+
+    def _follow(self, url: str, allowed_hosts: Collection[str], accept: str) -> Response:
         current = url
         for _ in range(MAX_REDIRECTS + 1):
             check_url(current, allowed_hosts)
@@ -153,12 +230,19 @@ class Http:
             current = urljoin(current, location)
         raise RequestFailed(url, f"more than {MAX_REDIRECTS} redirects", attempts=MAX_REDIRECTS + 1)
 
+    @contextmanager
+    def _counting(self, url: str) -> Iterator[HostStats]:
+        with self._stats_lock:
+            yield self._stats.setdefault(urlsplit(url).hostname or "", HostStats())
+
     def _admit(self, url: str) -> float:
         """Apply robots.txt to ``url`` and return the pacing interval for its host."""
         if not self.config.obey_robots:
             self._warn_override_once(url)
             return self.config.min_interval
         if not self._robots.allows(url):
+            with self._counting(url) as stats:
+                stats.robots_blocked += 1
             logger.warning("robots.txt disallows %s", url)
             raise RobotsDisallowed(url)
         return max(self.config.min_interval, self._robots.crawl_delay(url) or 0.0)
@@ -193,6 +277,8 @@ class Http:
 
     def _warn_override_once(self, url: str) -> None:
         host = urlsplit(url).hostname or url
+        with self._counting(url) as stats:
+            stats.robots_override = True
         with self._warn_lock:
             if host in self._override_warned:
                 return
@@ -212,6 +298,7 @@ class Http:
             attempt += 1
             status: int | None = None
             headers: Mapping[str, str] = {}
+            started = self._clock.monotonic()
             try:
                 with (
                     self._pacer.turn(host, interval),
@@ -223,20 +310,32 @@ class Http:
                         stream=True,
                     ) as reply,
                 ):
+                    with self._counting(url) as stats:
+                        stats.requests += 1
                     status = reply.status_code
                     if status in BLOCKED_STATUSES:
+                        logger.debug("GET %s -> HTTP %d", url, status)
                         logger.warning("%s refused the request with HTTP %d: %s", host, status, url)
                         raise Blocked(url, status)
                     if status < 400:
+                        content = _read(reply, url, limit, truncate=truncate)
+                        logger.debug(
+                            "GET %s -> %d, %d bytes in %.2f s",
+                            url,
+                            status,
+                            len(content),
+                            self._clock.monotonic() - started,
+                        )
                         return Response(
                             url=reply.url,
                             status=status,
                             headers={name.lower(): value for name, value in reply.headers.items()},
-                            content=_read(reply, url, limit, truncate=truncate),
+                            content=content,
                             fetched_at=self._clock.now(),
                             max_bytes=self.config.max_bytes,
                         )
                     headers = reply.headers
+                    logger.debug("GET %s -> HTTP %d", url, status)
                 problem = f"HTTP {status}"
             except requests.exceptions.SSLError as error:
                 raise RequestFailed(url, f"TLS error: {error}", attempts=attempt) from error
@@ -249,6 +348,7 @@ class Http:
                 # not an HTTP status, so forget the status and retry.
                 status = None
                 problem = type(error).__name__
+                logger.debug("GET %s -> %s", url, problem)
             except requests.RequestException as error:
                 raise RequestFailed(url, type(error).__name__, attempts=attempt) from error
             now = self._clock.now()
@@ -258,6 +358,8 @@ class Http:
                 raise RequestFailed(url, reason, attempts=attempt, status=status)
             if attempt > self.config.max_retries:
                 raise RequestFailed(url, problem, attempts=attempt, status=status)
+            with self._counting(url) as stats:
+                stats.retries += 1
             logger.warning(
                 "retrying %s in %.1f s after %s (attempt %d of %d)",
                 url,
@@ -269,8 +371,9 @@ class Http:
             self._clock.sleep(delay)
 
     def close(self) -> None:
-        """Release the connection pool."""
+        """Release the connection pool and trim the cache to its size limit."""
         self._session.close()
+        self._cache.prune()
 
     def __enter__(self) -> Self:
         return self

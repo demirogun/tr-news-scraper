@@ -50,6 +50,13 @@ class ResponseTooLarge(HttpError):
         self.limit = limit
 
 
+class NotCached(HttpError):
+    """Offline mode was requested, and the URL isn't in the cache."""
+
+    def __init__(self, url: str) -> None:
+        super().__init__(url, "offline, and not in the cache")
+
+
 class RequestFailed(HttpError):
     """Retries ran out, or the server answered with an error that retrying can't fix."""
 
