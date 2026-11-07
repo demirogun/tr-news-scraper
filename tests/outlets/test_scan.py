@@ -101,7 +101,7 @@ def test_months_before_the_archive_starts_cost_no_request(
     [
         ({"status_code": 403}, "blocked", "the site refused it with HTTP 403"),
         ({"status_code": 503}, "failed", "the request failed (HTTP 503, 4 attempts)"),
-        ({"status_code": 404}, "failed", "the request failed (HTTP 404, 1 attempts)"),
+        ({"status_code": 404}, "failed", "the request failed (HTTP 404, 1 attempt)"),
         ({"text": "<urlset><url>"}, "failed", "it isn't well-formed XML"),
         ({"text": index_listing(JAN)}, "failed", "expected a list of URLs (<urlset>)"),
     ],

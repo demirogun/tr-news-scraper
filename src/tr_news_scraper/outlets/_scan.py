@@ -302,7 +302,8 @@ def describe(error: Exception) -> str:
     if isinstance(error, HostNotAllowed):
         return f"refused, {error.reason}"
     if isinstance(error, RequestFailed):
-        return f"the request failed ({error.problem}, {error.attempts} attempts)"
+        attempts = "1 attempt" if error.attempts == 1 else f"{error.attempts} attempts"
+        return f"the request failed ({error.problem}, {attempts})"
     if isinstance(error, etree.XMLSyntaxError):
         return "it isn't well-formed XML"
     return str(error)
