@@ -51,6 +51,8 @@ DEFAULT_MAX_BYTES = 64 * 1024**2
 MAX_REDIRECTS = 5
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 _FETCH_ALWAYS = CachePolicy()
+# Records live under keys no request uses, so a record never answers a request or the reverse.
+_RECORD_TYPE = "application/vnd.tr-news-scraper.record+json"
 _UNSAFE_IN_CONTACT = frozenset("();")
 _HEADER_CHARSET = re.compile(r"charset\s*=\s*[\"']?([\w.:-]+)", re.IGNORECASE)
 _XML_ENCODING = re.compile(rb"^\s*<\?xml[^>]*\bencoding\s*=\s*[\"']([\w.:-]+)[\"']", re.IGNORECASE)
@@ -224,6 +226,20 @@ class Http:
                 ),
             )
         return response
+
+    def load_record(self, name: str) -> bytes | None:
+        """The record kept under ``name`` with :meth:`store_record`, however old, or ``None``."""
+        entry = self._cache.load(DiskCache.key(name, _RECORD_TYPE), ttl=None, any_age=True)
+        return None if entry is None else entry.content
+
+    def store_record(self, name: str, data: bytes) -> None:
+        """Keep ``data`` under ``name`` in the cache folder, inside its size limit.
+
+        Records hold results worth keeping instead of the pages they came from, such as an
+        article's extracted text. Like responses, the oldest go first when the cache is full.
+        """
+        entry = CachedEntry(name, 200, {"content-type": _RECORD_TYPE}, data, self._clock.now())
+        self._cache.store(DiskCache.key(name, _RECORD_TYPE), entry)
 
     def cancel(self) -> None:
         """Stop every later request attempt, in every thread, with ``Cancelled``. An attempt
