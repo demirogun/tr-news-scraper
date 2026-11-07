@@ -11,10 +11,12 @@ tr_news_scraper's own polite ``Http`` client (robots.txt obeyed, honest User-Age
 
 It samples about 300 rows. A label is pre-filled with 0 only where the keyword's root can't
 occur (the folded root isn't in the folded headline); every other label is "?" for a person to
-decide. The committed CSV holds Claude's draft decisions, marked ``reviewed=no`` until a
-maintainer checks them. Usage::
+decide. The committed CSV started as Claude's draft decisions; a maintainer reviewed every row on
+2026-11-07 and added the columns ``title_source``, ``slug_text`` and ``original_labels``. The
+script writes only a new draft and never overwrites a file, so the reviewed labels can't be
+lost. Usage::
 
-    uv run python scripts/build_labeled_set.py tests/matching/fixtures/labeled.csv
+    uv run python scripts/build_labeled_set.py new-draft.csv
 """
 
 from __future__ import annotations
@@ -180,7 +182,13 @@ def write(rows: list[Row], path: Path) -> None:
 
 
 def main(argv: list[str]) -> int:
-    target = Path(argv[1] if len(argv) > 1 else "tests/matching/fixtures/labeled.csv")
+    if len(argv) != 2:
+        print("usage: build_labeled_set.py NEW-DRAFT.csv", file=sys.stderr)
+        return 2
+    target = Path(argv[1])
+    if target.exists():
+        print(f"{target} exists; write the new draft to another file", file=sys.stderr)
+        return 1
     rng = random.Random(SEED)  # noqa: S311 - reproducible sampling, not security
     with Http() as http:
         titled = collect_titled(http)

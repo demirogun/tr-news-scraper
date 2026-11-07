@@ -27,11 +27,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     matching, and `"word"` forces an exact match.
   - It matches headlines, URL slugs and text, and every match comes with a reason. A URL that ends
     in a bare `haber-<id>` segment, as Akşam's do, is matched on the segment before it.
-  - On 300 real headlines it reaches precision ≥ 0.96 and recall 1.00 for deprem, sel, heyelan, çığ
-    and tsunami.
-  - Known limitations: names that look inflected match (`Selim` for `sel`); words that drop a
-    vowel need their other form as a second keyword (`kayıp` → `kaybı`); and some outlets replace
-    "ı" in URLs, so their URLs can miss words their headlines contain.
+  - On 300 hand-labeled articles from Euronews Türkçe, TRT Haber and NTV, matching the URL and any
+    real headline finds every article that names deprem, sel, heyelan, çığ or tsunami there, with
+    precision ≥ 0.96. Some articles never name the hazard in their URL or headline (a landslide
+    reported as "toprak kayması", an AFAD note ruling out a tsunami after an earthquake), so
+    recall over all the articles about each hazard is 0.88–1.00.
+  - Known limitations: names that look inflected match (`Selim` for `sel`), and so do metaphors
+    ("Omicron tsunamisi"); synonyms aren't added, so search for landslides with both `heyelan`
+    and `toprak kayma`; words that drop a vowel need their other form as a second keyword
+    (`kayıp` → `kaybı`); and some outlets replace "ı" in URLs, so their URLs can miss words their
+    headlines contain.
 
 - `tr_news_scraper.outlets`, the news archives 1.0 reads, described as data you can extend:
   - Six built-in outlets publish monthly sitemaps that their robots.txt allows:
