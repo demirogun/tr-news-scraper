@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import codecs
 import logging
+import random
 import re
 import threading
 import unicodedata
-from collections.abc import Collection, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from http.cookiejar import DefaultCookiePolicy
@@ -21,9 +22,16 @@ import requests
 from tr_news_scraper import __version__
 from tr_news_scraper._http.clock import Clock, SystemClock
 from tr_news_scraper._http.pacing import HostPacer
-from tr_news_scraper._http.robots import RobotsPolicy
+from tr_news_scraper._http.retry import (
+    BLOCKED_STATUSES,
+    MAX_RETRY_AFTER,
+    RETRY_STATUSES,
+    parse_retry_after,
+    retry_delay,
+)
+from tr_news_scraper._http.robots import MAX_ROBOTS_BYTES, RobotsPolicy
 from tr_news_scraper._http.safety import check_url
-from tr_news_scraper.errors import RobotsDisallowed
+from tr_news_scraper.errors import Blocked, RequestFailed, ResponseTooLarge, RobotsDisallowed
 
 logger = logging.getLogger("tr_news_scraper.http")
 
@@ -89,9 +97,16 @@ class Response:
 class Http:
     """Fetches pages from news sites, politely and safely. Use one instance per search."""
 
-    def __init__(self, config: HttpConfig | None = None, *, clock: Clock | None = None) -> None:
+    def __init__(
+        self,
+        config: HttpConfig | None = None,
+        *,
+        clock: Clock | None = None,
+        jitter: Callable[[], float] | None = None,
+    ) -> None:
         self.config = config or HttpConfig()
         self._clock: Clock = clock or SystemClock()
+        self._jitter = jitter or random.SystemRandom().random
         self._session = requests.Session()
         self._session.cookies.set_policy(DefaultCookiePolicy(allowed_domains=[]))
         self._session.headers.update(
@@ -116,13 +131,19 @@ class Http:
             raise RobotsDisallowed(url)
         else:
             interval = max(interval, self._robots.crawl_delay(url) or 0.0)
-        return self._send(url, accept, interval)
+        return self._fetch(url, accept, interval, limit=self.config.max_bytes)
 
     def _fetch_robots(self, robots_url: str) -> tuple[int | None, bytes]:
         try:
-            response = self._send(robots_url, "text/plain", self.config.min_interval)
-        except requests.RequestException:
-            return None, b""
+            response = self._fetch(
+                robots_url,
+                "text/plain",
+                self.config.min_interval,
+                limit=MAX_ROBOTS_BYTES,
+                truncate=True,
+            )
+        except (Blocked, RequestFailed) as failure:
+            return failure.status, b""
         return response.status, response.content
 
     def _warn_override_once(self, url: str) -> None:
@@ -136,22 +157,67 @@ class Http:
             host,
         )
 
-    def _send(self, url: str, accept: str, interval: float) -> Response:
-        with self._pacer.turn(urlsplit(url).hostname or "", interval):
-            reply = self._session.get(
+    def _fetch(
+        self, url: str, accept: str, interval: float, *, limit: int, truncate: bool = False
+    ) -> Response:
+        """One paced request, retried on connection errors, timeouts, 429 and 5xx."""
+        host = urlsplit(url).hostname or ""
+        attempt = 0
+        while True:
+            attempt += 1
+            status: int | None = None
+            headers: Mapping[str, str] = {}
+            try:
+                with (
+                    self._pacer.turn(host, interval),
+                    self._session.get(
+                        url,
+                        headers={"Accept": accept},
+                        timeout=(self.config.connect_timeout, self.config.read_timeout),
+                        allow_redirects=False,
+                        stream=True,
+                    ) as reply,
+                ):
+                    status = reply.status_code
+                    if status in BLOCKED_STATUSES:
+                        logger.warning("%s refused the request with HTTP %d: %s", host, status, url)
+                        raise Blocked(url, status)
+                    if status < 400:
+                        return Response(
+                            url=reply.url,
+                            status=status,
+                            headers={name.lower(): value for name, value in reply.headers.items()},
+                            content=_read(reply, url, limit, truncate=truncate),
+                            fetched_at=self._clock.now(),
+                        )
+                    headers = reply.headers
+                problem = f"HTTP {status}"
+            except requests.exceptions.SSLError as error:
+                raise RequestFailed(url, f"TLS error: {error}", attempts=attempt) from error
+            except (
+                requests.ConnectionError,
+                requests.Timeout,
+                requests.exceptions.ChunkedEncodingError,
+            ) as error:
+                problem = type(error).__name__
+            except requests.RequestException as error:
+                raise RequestFailed(url, type(error).__name__, attempts=attempt) from error
+            now = self._clock.now()
+            delay = retry_delay(status, headers, attempt, now=now, jitter=self._jitter)
+            if delay is None:
+                reason = _no_retry_reason(status, headers, problem, now)
+                raise RequestFailed(url, reason, attempts=attempt, status=status)
+            if attempt > self.config.max_retries:
+                raise RequestFailed(url, problem, attempts=attempt, status=status)
+            logger.warning(
+                "retrying %s in %.1f s after %s (attempt %d of %d)",
                 url,
-                headers={"Accept": accept},
-                timeout=(self.config.connect_timeout, self.config.read_timeout),
-                allow_redirects=False,
+                delay,
+                problem,
+                attempt,
+                self.config.max_retries + 1,
             )
-            content = reply.content
-        return Response(
-            url=reply.url,
-            status=reply.status_code,
-            headers={name.lower(): value for name, value in reply.headers.items()},
-            content=content,
-            fetched_at=self._clock.now(),
-        )
+            self._clock.sleep(delay)
 
     def close(self) -> None:
         """Release the connection pool."""
@@ -167,6 +233,33 @@ class Http:
         traceback: TracebackType | None,
     ) -> None:
         self.close()
+
+
+def _read(reply: requests.Response, url: str, limit: int, *, truncate: bool) -> bytes:
+    """Read the decompressed body; past ``limit``, refuse it (or cut it, for robots.txt)."""
+    chunks: list[bytes] = []
+    size = 0
+    for chunk in reply.iter_content(chunk_size=64 * 1024):
+        size += len(chunk)
+        if size > limit:
+            if not truncate:
+                raise ResponseTooLarge(url, limit)
+            chunks.append(chunk[: len(chunk) - (size - limit)])
+            break
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _no_retry_reason(
+    status: int | None, headers: Mapping[str, str], problem: str, now: datetime
+) -> str:
+    if status in RETRY_STATUSES:
+        advised = parse_retry_after(headers.get("Retry-After"), now=now)
+        return (
+            f"{problem}; the server asked us to wait {advised:.0f} s, "
+            f"longer than the {MAX_RETRY_AFTER:.0f} s we're willing to wait"
+        )
+    return problem
 
 
 def _is_safe_contact(contact: str) -> bool:

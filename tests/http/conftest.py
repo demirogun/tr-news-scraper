@@ -59,8 +59,8 @@ def clock() -> FakeClock:
 def make_http(tmp_path: Path, clock: FakeClock) -> Callable[..., Http]:
     """Build an ``Http`` on the fake clock whose cache lives in the test's temp folder."""
 
-    def factory(**config: Any) -> Http:
+    def factory(*, jitter: float = 0.0, **config: Any) -> Http:
         config.setdefault("cache_dir", tmp_path / "cache")
-        return Http(HttpConfig(**config), clock=clock)
+        return Http(HttpConfig(**config), clock=clock, jitter=lambda: jitter)
 
     return factory

@@ -32,3 +32,30 @@ class RobotsDisallowed(HttpError):
 
     def __init__(self, url: str) -> None:
         super().__init__(url, "robots.txt disallows fetching")
+
+
+class Blocked(HttpError):
+    """The site refused the request (HTTP 401, 403 or 451). It is never retried."""
+
+    def __init__(self, url: str, status: int) -> None:
+        super().__init__(url, f"the site refused the request with HTTP {status}")
+        self.status = status
+
+
+class ResponseTooLarge(HttpError):
+    """The body, after decompression, grew past the configured size cap."""
+
+    def __init__(self, url: str, limit: int) -> None:
+        super().__init__(url, f"the response is larger than {limit} bytes")
+        self.limit = limit
+
+
+class RequestFailed(HttpError):
+    """Retries ran out, or the server answered with an error that retrying can't fix."""
+
+    def __init__(self, url: str, problem: str, *, attempts: int, status: int | None = None) -> None:
+        plural = "" if attempts == 1 else "s"
+        super().__init__(url, f"{problem} (after {attempts} attempt{plural})")
+        self.problem = problem
+        self.attempts = attempts
+        self.status = status
