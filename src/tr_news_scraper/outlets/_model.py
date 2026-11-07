@@ -234,6 +234,8 @@ class Gap:
     month: Month | None = None
     keyword: str | None = None
     url: str | None = None
+    reached: date | None = None
+    """``window`` gaps: the oldest day the site's search reached for the keyword."""
 
 
 def _check_identity(outlet_id: str, name: str) -> None:

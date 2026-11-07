@@ -6,6 +6,8 @@ catch the library's failures without catching unrelated ones.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 
 class TrNewsError(Exception):
     """Base class for all tr_news_scraper errors."""
@@ -65,6 +67,16 @@ class OutletFailed(TrNewsError):
         super().__init__(f"{outlet}: {reason}")
         self.outlet = outlet
         self.reason = reason
+
+
+class SearchFailed(TrNewsError):
+    """Every outlet in a search failed, so there is nothing to return. ``failures`` maps each
+    outlet's id to its reason."""
+
+    def __init__(self, failures: Mapping[str, str], hint: str | None = None) -> None:
+        lines = [f"  {outlet}: {reason}" for outlet, reason in failures.items()]
+        super().__init__("\n".join(["every outlet failed:", *lines, *([hint] if hint else [])]))
+        self.failures = dict(failures)
 
 
 class RequestFailed(HttpError):

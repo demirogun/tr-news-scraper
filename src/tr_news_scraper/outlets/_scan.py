@@ -214,6 +214,7 @@ class Scan:
                     f"{outlet.name}'s search has nothing older than {outcome.oldest_seen} for "
                     f"{keyword!r}, so the rest of the range can't be reached through it",
                     keyword=keyword,
+                    reached=outcome.oldest_seen,
                 )
                 self.gaps.append(gap)
                 logger.warning("%s: %s", outlet.name, gap.detail)

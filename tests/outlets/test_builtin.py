@@ -243,5 +243,5 @@ def test_a_milliyet_scan_reports_where_its_results_end(http: Http, requests_mock
     assert [c.day for c in candidates] == [date(2026, 11, 7)] * 4 + [date(2026, 11, 6)]
     assert all(c.month == Month(2026, 11) and c.title for c in candidates)
     [gap] = found.gaps
-    assert (gap.reason, gap.keyword) == ("window", "deprem")
+    assert (gap.reason, gap.keyword, gap.reached) == ("window", "deprem", date(2026, 11, 6))
     assert "nothing older than 2026-11-06" in gap.detail
