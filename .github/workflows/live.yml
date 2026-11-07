@@ -1,0 +1,88 @@
+name: Live check
+
+# Every Monday, read each built-in outlet's real archive with the library's own client
+# (robots.txt obeyed, honest User-Agent, one request per second per site). A failure opens one
+# issue labeled "live-check", or comments on the open one; the next passing run closes it.
+# GitHub runs scheduled workflows only from the default branch.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: live-check
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.13.7"
+
+jobs:
+  live:
+    name: Live archives and robots.txt
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      failed: ${{ steps.collect.outputs.failed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.15"
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Run the live tests
+        run: |
+          set -o pipefail
+          uv run pytest -m live tests/live --no-cov -p no:cacheprovider -rfE 2>&1 | tee live.log
+      # Only test names go to the issue, never text from the news sites.
+      - name: Collect the names of failing tests
+        id: collect
+        if: always()
+        run: |
+          {
+            echo "failed<<END_OF_FAILED_TESTS"
+            { grep -E '^(FAILED|ERROR) ' live.log || true; } | sed -E 's/ - .*$//' | head -n 50
+            echo "END_OF_FAILED_TESTS"
+          } >> "$GITHUB_OUTPUT"
+
+  # This job alone can write issues. It checks out nothing and runs no third-party action.
+  report:
+    name: Open, update or close the live-check issue
+    needs: live
+    if: always() && (needs.live.result == 'success' || needs.live.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Report on the live-check issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULT: ${{ needs.live.result }}
+          FAILED: ${{ needs.live.outputs.failed }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          label=live-check
+          issue=$(gh issue list --label "$label" --state open --limit 1 \
+            --json number --jq '.[0].number // empty')
+          if [ "$RESULT" = "failure" ]; then
+            body=$(printf 'The weekly live check failed: %s\n\nFailing tests:\n\n```\n%s\n```\n' \
+              "$RUN_URL" "${FAILED:-none were collected; see the run log}")
+            if [ -n "$issue" ]; then
+              gh issue comment "$issue" --body "$body"
+            else
+              gh label create "$label" --color B60205 --force \
+                --description "The weekly live check of the news outlets failed"
+              gh issue create --title "Weekly live check failed" --label "$label" --body "$body"
+            fi
+          elif [ -n "$issue" ]; then
+            gh issue close "$issue" --comment "The live check passes again: $RUN_URL"
+          fi
