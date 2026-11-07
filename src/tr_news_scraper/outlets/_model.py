@@ -214,6 +214,27 @@ class SiteSearch:
 Outlet = MonthlySitemap | SiteSearch
 """Any outlet definition."""
 
+GapReason = Literal[
+    "before-archive", "after-archive", "not-in-archive", "window", "robots", "blocked", "failed"
+]
+"""Why part of a range wasn't read. The first three are archive boundaries, not failures."""
+
+BOUNDARY_REASONS: frozenset[GapReason] = frozenset(
+    {"before-archive", "after-archive", "not-in-archive"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Gap:
+    """Part of the requested range that an outlet's scan didn't read, and why."""
+
+    reason: GapReason
+    detail: str
+    """One sentence for the report, such as "the archive starts in 2023-12"."""
+    month: Month | None = None
+    keyword: str | None = None
+    url: str | None = None
+
 
 def _check_identity(outlet_id: str, name: str) -> None:
     if not isinstance(outlet_id, str) or not _ID.fullmatch(outlet_id):
