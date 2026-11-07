@@ -25,7 +25,6 @@ from tr_news_scraper.errors import OutletFailed, SearchFailed
 from tr_news_scraper.matching import KeywordQuery, tr_lower
 from tr_news_scraper.outlets import (
     Candidate,
-    Month,
     MonthlySitemap,
     Outlet,
     SiteSearch,
@@ -116,12 +115,22 @@ def edited_before(candidate: Candidate, start: date) -> bool:
     extra day absorbs sites that write UTC times without an offset. A last edit before the
     entry's own month contradicts the archive, so it can't rule the entry out.
     """
+    return _edited_before(candidate, _cutoff(start))
+
+
+def _cutoff(start: date) -> datetime:
+    """Midnight in Türkiye a day before ``start``: an entry last edited earlier is out."""
+    return datetime.combine(start - timedelta(days=1), time(), ISTANBUL)
+
+
+def _edited_before(candidate: Candidate, cutoff: datetime) -> bool:
     if candidate.lastmod is None:
         return False
     edited = candidate.lastmod.astimezone(ISTANBUL)
-    if Month.of(edited.date()) < candidate.month:
+    month = candidate.month
+    if (edited.year, edited.month) < (month.year, month.month):
         return False
-    return edited < datetime.combine(start - timedelta(days=1), time(), ISTANBUL)
+    return edited < cutoff
 
 
 def collect(
@@ -137,6 +146,8 @@ def collect(
     as unconfirmed, and a matching entry ruled out by its dates counts as trimmed.
     """
     searched = isinstance(run.outlet, SiteSearch)
+    keywords = query.keywords
+    cutoff = _cutoff(start)
     for candidate in candidates:
         run.candidates += 1
         title = clean_title(candidate.title)
@@ -148,7 +159,7 @@ def collect(
             if not start <= candidate.day < end:
                 run.trimmed += 1
                 continue
-        elif edited_before(candidate, start):
+        elif _edited_before(candidate, cutoff):
             run.trimmed += 1
             continue
         found = {match.keyword for match in matches}
@@ -157,7 +168,7 @@ def collect(
                 outlet=run.outlet.id,
                 url=clean_url(candidate.url),
                 month=candidate.month,
-                matched=tuple(keyword for keyword in query.keywords if keyword in found),
+                matched=tuple(keyword for keyword in keywords if keyword in found),
                 reasons=tuple(match.reason for match in matches),
                 source=candidate.source,
                 title=title,

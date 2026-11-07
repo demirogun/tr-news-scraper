@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from tr_news_scraper._http import Http, HttpConfig
 from tr_news_scraper._search import in_threads, resolve_outlets
-from tr_news_scraper._table import TIME_DTYPE, string_series, time_series
+from tr_news_scraper._table import string_series, time_series
 from tr_news_scraper.outlets import Month, MonthlySitemap, Outlet
 from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._health import check as health_check
@@ -77,7 +77,7 @@ def _coverage(outlets: Sequence[Outlet], http: Http | None, *, now: datetime) ->
             "oldest": string_series([_month(health.oldest) for health in found]),
             "newest": string_series([_month(health.newest) for health in found]),
             "sample": pd.Series([health.sample for health in found], dtype="int64"),
-            "checked_at": time_series([now] * len(found), TIME_DTYPE),
+            "checked_at": time_series([now] * len(found)),
         }
     return pd.DataFrame(columns)
 
