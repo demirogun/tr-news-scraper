@@ -5,6 +5,8 @@ from __future__ import annotations
 import random
 import time
 
+import pytest
+
 from tr_news_scraper.matching import KeywordQuery
 
 WORDS = [
@@ -58,6 +60,9 @@ def candidates(count: int) -> list[tuple[str, str]]:
     return rows
 
 
+# The budget is for the matcher as users run it. Before Python 3.14, coverage traces every line
+# and slows this loop by about half, so coverage is paused for this test.
+@pytest.mark.no_cover
 def test_100k_candidates_and_5_keywords_take_under_5_seconds() -> None:
     query = KeywordQuery(["deprem", "sel", "heyelan", "çığ", "tsunami"])
     rows = candidates(100_000)
