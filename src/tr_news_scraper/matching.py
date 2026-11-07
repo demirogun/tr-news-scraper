@@ -26,12 +26,13 @@ import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
+from urllib.parse import unquote, urlsplit
 
 from tr_news_scraper._suffixes import prefix_pattern, stem_pattern
 
-__all__ = ["KeywordQuery", "Match", "fold", "tokens", "tr_lower"]
+__all__ = ["KeywordQuery", "Match", "fold", "tokens", "tr_lower", "url_slug_tokens"]
 
-Field = Literal["title", "text"]
+Field = Literal["title", "url", "text"]
 Mode = Literal["exact", "stem", "prefix"]
 
 PREFIX_MIN_LETTERS = 5
@@ -43,6 +44,8 @@ _WORD = re.compile(r"[^\W_]+")
 _WORD_START = r"(?<![^\W_])"
 _WORD_END = r"(?![^\W_])"
 _WORD_GAP = r"[\W_]+"
+_PAGE_EXTENSION = re.compile(r"\.(?:html?|amp)$", re.IGNORECASE)
+_TRAILING_ID = re.compile(r"-\d+$")
 
 
 def tr_lower(text: str) -> str:
@@ -62,6 +65,23 @@ def fold(text: str) -> str:
 def tokens(text: str) -> list[str]:
     """Split text into lowercase words; apostrophes, hyphens and punctuation separate words."""
     return _WORD.findall(tr_lower(text))
+
+
+def url_slug_tokens(url: str) -> list[str]:
+    """The folded words of an article URL's slug.
+
+    Only the slug counts: the last path segment, or the one before it if the last is a number.
+    A page extension (``.html``, ``.htm``, ``.amp``) and a trailing ``-<id>`` are dropped, and
+    category folders, the query string and the fragment are ignored.
+    """
+    segments = [segment for segment in unquote(urlsplit(url).path).split("/") if segment]
+    if not segments:
+        return []
+    slug = segments[-1]
+    if slug.isdigit() and len(segments) > 1:
+        slug = segments[-2]
+    slug = _TRAILING_ID.sub("", _PAGE_EXTENSION.sub("", slug))
+    return _WORD.findall(fold(slug))
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,9 +104,10 @@ class _Keyword:
     text: str
     mode: Mode
     pattern: re.Pattern[str]
+    folded_pattern: re.Pattern[str]
 
-    def find(self, normalized: str) -> str | None:
-        found = self.pattern.search(normalized)
+    def find(self, normalized: str, *, folded: bool) -> str | None:
+        found = (self.folded_pattern if folded else self.pattern).search(normalized)
         return found.group(0) if found else None
 
 
@@ -103,24 +124,33 @@ class KeywordQuery:
         """The keywords as written, minus surrounding spaces."""
         return tuple(keyword.text for keyword in self._keywords)
 
-    def match(self, *, title: str | None = None, text: str | None = None) -> tuple[Match, ...]:
-        """Every keyword found, at most once per field: titles first, then text, each in
-        keyword order."""
+    def match(
+        self, *, title: str | None = None, url: str | None = None, text: str | None = None
+    ) -> tuple[Match, ...]:
+        """Every keyword found, at most once per field: title, then URL slug, then text, each
+        in keyword order. URL slugs are compared in folded (ASCII) form."""
         found: list[Match] = []
-        fields: tuple[tuple[Field, str | None], ...] = (("title", title), ("text", text))
+        fields: tuple[tuple[Field, str | None], ...] = (
+            ("title", title),
+            ("url", url),
+            ("text", text),
+        )
         for field, value in fields:
             if value is None:
                 continue
-            normalized = tr_lower(value)
+            folded = field == "url"
+            normalized = " ".join(url_slug_tokens(value)) if folded else tr_lower(value)
             for keyword in self._keywords:
-                token = keyword.find(normalized)
+                token = keyword.find(normalized, folded=folded)
                 if token is not None:
                     found.append(Match(keyword.text, field, token, keyword.mode))
         return tuple(found)
 
-    def matches(self, *, title: str | None = None, text: str | None = None) -> bool:
+    def matches(
+        self, *, title: str | None = None, url: str | None = None, text: str | None = None
+    ) -> bool:
         """Whether any keyword matches any of the given fields."""
-        return bool(self.match(title=title, text=text))
+        return bool(self.match(title=title, url=url, text=text))
 
 
 def _parse(raw: str) -> _Keyword:
@@ -137,10 +167,12 @@ def _parse(raw: str) -> _Keyword:
     if len(words) == 1 and len(words[0]) < 2:
         raise ValueError(f"keyword {raw!r} is too short; use at least two letters")
     mode: Mode = forced or ("prefix" if len(words[-1]) >= PREFIX_MIN_LETTERS else "stem")
-    return _Keyword(text, mode, _compile(words, mode))
+    source = _source(words, mode)
+    # Folding only maps Turkish letters to ASCII; it never touches the regex syntax.
+    return _Keyword(text, mode, re.compile(source), re.compile(source.translate(_FOLD)))
 
 
-def _compile(words: list[str], mode: Mode) -> re.Pattern[str]:
+def _source(words: list[str], mode: Mode) -> str:
     *leading, last = words
     if mode == "prefix":
         last_part = prefix_pattern(last)
@@ -149,4 +181,4 @@ def _compile(words: list[str], mode: Mode) -> re.Pattern[str]:
     else:
         last_part = re.escape(last) + _WORD_END
     parts = [re.escape(word) for word in leading] + [last_part]
-    return re.compile(_WORD_START + _WORD_GAP.join(parts))
+    return _WORD_START + _WORD_GAP.join(parts)
