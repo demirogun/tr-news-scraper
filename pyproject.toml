@@ -65,12 +65,17 @@ select = ["E", "W", "F", "I", "B", "UP", "S", "BLE", "DTZ", "T20", "PT", "SIM", 
 
 [tool.mypy]
 strict = true
-files = ["src"]
+files = ["src", "tests"]
 
 [tool.pytest.ini_options]
-addopts = "-ra --strict-markers -m 'not live' --cov=tr_news_scraper --cov-branch --cov-report=term-missing"
+addopts = "-ra --strict-markers -m 'not live' --cov --cov-report=term-missing"
 markers = ["live: talks to real news sites; weekly CI only"]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+# Measure by path: with the src layout, matching by package name collected no data (coverage 7.17).
+source = ["src"]
+branch = true
 
 [tool.coverage.report]
 fail_under = 85
