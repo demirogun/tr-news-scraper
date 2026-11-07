@@ -36,9 +36,6 @@ Field = Literal["title", "url", "text"]
 Mode = Literal["exact", "stem", "prefix"]
 
 PREFIX_MIN_LETTERS = 5
-# İ→i and I→ı before lowercasing; the modifier-letter apostrophe (U+02BC) is a Unicode letter,
-# so it becomes a plain apostrophe to separate words like ' and ’ do.
-_NORMALIZE = str.maketrans({"İ": "i", "I": "ı", "ʼ": "'"})
 _FOLD = str.maketrans("çğıöşüâîû", "cgiosuaiu")
 _WORD = re.compile(r"[^\W_]+")
 _WORD_START = r"(?<![^\W_])"
@@ -53,7 +50,11 @@ def tr_lower(text: str) -> str:
 
     The result is NFC-normalized, and every apostrophe style separates words.
     """
-    return unicodedata.normalize("NFC", text).translate(_NORMALIZE).lower()
+    text = unicodedata.normalize("NFC", text)
+    # İ→i and I→ı before lowercasing. The modifier-letter apostrophe (U+02BC) is a Unicode
+    # letter, so it becomes a plain apostrophe to separate words like ' and ’ do. Three replace
+    # calls are several times faster than str.translate on non-ASCII text.
+    return text.replace("İ", "i").replace("I", "ı").replace("ʼ", "'").lower()
 
 
 def fold(text: str) -> str:
@@ -105,9 +106,19 @@ class _Keyword:
     mode: Mode
     pattern: re.Pattern[str]
     folded_pattern: re.Pattern[str]
+    # Text that every match contains; a plain substring test rules most texts out before the
+    # regex runs.
+    literal: str
+    folded_literal: str
 
     def find(self, normalized: str, *, folded: bool) -> str | None:
-        found = (self.folded_pattern if folded else self.pattern).search(normalized)
+        if folded:
+            literal, pattern = self.folded_literal, self.folded_pattern
+        else:
+            literal, pattern = self.literal, self.pattern
+        if literal not in normalized:
+            return None
+        found = pattern.search(normalized)
         return found.group(0) if found else None
 
 
@@ -168,8 +179,18 @@ def _parse(raw: str) -> _Keyword:
         raise ValueError(f"keyword {raw!r} is too short; use at least two letters")
     mode: Mode = forced or ("prefix" if len(words[-1]) >= PREFIX_MIN_LETTERS else "stem")
     source = _source(words, mode)
+    # Every match starts with the first word, except that consonant softening may change its
+    # last letter (kitap → kitabı).
+    literal = words[0][:-1]
     # Folding only maps Turkish letters to ASCII; it never touches the regex syntax.
-    return _Keyword(text, mode, re.compile(source), re.compile(source.translate(_FOLD)))
+    return _Keyword(
+        text,
+        mode,
+        re.compile(source),
+        re.compile(source.translate(_FOLD)),
+        literal,
+        literal.translate(_FOLD),
+    )
 
 
 def _source(words: list[str], mode: Mode) -> str:

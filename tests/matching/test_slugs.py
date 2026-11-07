@@ -86,6 +86,7 @@ def test_turkish_keywords_match_their_folded_form_in_urls() -> None:
         ("sel", "rizede-selde-uc-kayip", True),
         ("sel", "bakan-selam-verdi", False),
         ("obruk", "konyada-obrugu-incelendi", True),
+        ("göçük", "madendeki-gocugu-incelendi", True),
         ("toprak kayması", "rizede-toprak-kaymasi-yasandi", True),
     ],
 )
