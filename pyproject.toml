@@ -45,6 +45,9 @@ dev = [
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/tr_news_scraper"]
+
 [tool.hatch.build.targets.sdist]
 exclude = ["/SPEC*.md", "/docs/ideas", "/docs/intent", "/tasks", "/.audit", "/.venv-lowest"]
 
@@ -62,6 +65,7 @@ select = ["E", "W", "F", "I", "B", "UP", "S", "BLE", "DTZ", "T20", "PT", "SIM", 
 
 [tool.mypy]
 strict = true
+files = ["src"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers -m 'not live' --cov=tr_news_scraper --cov-branch --cov-report=term-missing"

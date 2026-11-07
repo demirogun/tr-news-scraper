@@ -17,12 +17,13 @@ pip install tr-news-scraper
 Scrape news articles based on a single or multiple keywords. scrape() method returns a **pandas dataframe**.
 
 ```python
-
 from tr_news_scraper import tr_news_scraper as tns
 
-scraper = tns.NewsScraper() # You can define page_limit parameter here. Default value is 20.
-single_keyword_news = scraper.scrape(["keyword"]) # You can define keyword or keywords here.
-multiple_keywords_news = scraper.scrape(["keyword_1", "keyword_2", "keyword_3"]) # You can define keyword or keywords here.
+scraper = tns.NewsScraper()  # You can define page_limit parameter here. Default value is 20.
+single_keyword_news = scraper.scrape(["keyword"])  # You can define keyword or keywords here.
+multiple_keywords_news = scraper.scrape(
+    ["keyword_1", "keyword_2", "keyword_3"]
+)  # You can define keyword or keywords here.
 ```
 | title | authors | publish_date | text | keywords | top_img | url | meta_url | meta_img | meta_published_date | meta_description | meta_keywords | date | keyword |
 |-------|---------|--------------|------|----------|---------|-----|----------|----------|---------------------|------------------|---------------|------|---------|
