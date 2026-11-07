@@ -12,7 +12,8 @@ The rules:
 - Turkish casing: ``tr_lower`` maps İ→i and I→ı before lowercasing, so "IŞIK" becomes "ışık"
   (Python's own ``str.lower`` gives "işik").
 - A keyword of five or more letters matches any word that starts with it ("deprem" finds
-  "depremin" and "depremzede"); shorter keywords match whole words only.
+  "depremin" and "depremzede"). A shorter keyword matches the word plus Turkish inflectional
+  suffixes only ("sel" finds "sellerde" but not "selam"); see ``_suffixes`` for the grammar.
 - ``word*`` forces prefix matching and ``"word"`` forces an exact match.
 - In a phrase, the earlier words must match exactly and the last one follows the rules above.
 - Apostrophes, hyphens and punctuation separate words: "Kahramanmaraş'ta" is "kahramanmaraş" + "ta".
@@ -26,10 +27,12 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
+from tr_news_scraper._suffixes import prefix_pattern, stem_pattern
+
 __all__ = ["KeywordQuery", "Match", "fold", "tokens", "tr_lower"]
 
 Field = Literal["title", "text"]
-Mode = Literal["exact", "prefix"]
+Mode = Literal["exact", "stem", "prefix"]
 
 PREFIX_MIN_LETTERS = 5
 # İ→i and I→ı before lowercasing; the modifier-letter apostrophe (U+02BC) is a Unicode letter,
@@ -133,12 +136,17 @@ def _parse(raw: str) -> _Keyword:
         raise ValueError(f"keyword {raw!r} is blank")
     if len(words) == 1 and len(words[0]) < 2:
         raise ValueError(f"keyword {raw!r} is too short; use at least two letters")
-    mode: Mode = forced or ("prefix" if len(words[-1]) >= PREFIX_MIN_LETTERS else "exact")
+    mode: Mode = forced or ("prefix" if len(words[-1]) >= PREFIX_MIN_LETTERS else "stem")
     return _Keyword(text, mode, _compile(words, mode))
 
 
 def _compile(words: list[str], mode: Mode) -> re.Pattern[str]:
     *leading, last = words
-    last_part = re.escape(last) + (r"[^\W_]*" if mode == "prefix" else _WORD_END)
+    if mode == "prefix":
+        last_part = prefix_pattern(last)
+    elif mode == "stem":
+        last_part = stem_pattern(last) + _WORD_END
+    else:
+        last_part = re.escape(last) + _WORD_END
     parts = [re.escape(word) for word in leading] + [last_part]
     return re.compile(_WORD_START + _WORD_GAP.join(parts))
