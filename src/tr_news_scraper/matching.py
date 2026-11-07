@@ -43,6 +43,8 @@ _WORD_END = r"(?![^\W_])"
 _WORD_GAP = r"[\W_]+"
 _PAGE_EXTENSION = re.compile(r"\.(?:html?|amp)$", re.IGNORECASE)
 _TRAILING_ID = re.compile(r"-\d+$")
+# Akşam ends its URLs with /<slug>/haber-<id>, so the slug is the segment before.
+_ID_SEGMENT = re.compile(r"haber-\d+")
 
 
 def tr_lower(text: str) -> str:
@@ -71,15 +73,15 @@ def tokens(text: str) -> list[str]:
 def url_slug_tokens(url: str) -> list[str]:
     """The folded words of an article URL's slug.
 
-    Only the slug counts: the last path segment, or the one before it if the last is a number.
-    A page extension (``.html``, ``.htm``, ``.amp``) and a trailing ``-<id>`` are dropped, and
-    category folders, the query string and the fragment are ignored.
+    Only the slug counts: the last path segment, or the one before it if the last is a number
+    or only ``haber-<id>``. A page extension (``.html``, ``.htm``, ``.amp``) and a trailing
+    ``-<id>`` are dropped, and category folders, the query string and the fragment are ignored.
     """
     segments = [segment for segment in unquote(urlsplit(url).path).split("/") if segment]
     if not segments:
         return []
     slug = segments[-1]
-    if slug.isdigit() and len(segments) > 1:
+    if (slug.isdigit() or _ID_SEGMENT.fullmatch(slug)) and len(segments) > 1:
         slug = segments[-2]
     slug = _TRAILING_ID.sub("", _PAGE_EXTENSION.sub("", slug))
     return _WORD.findall(fold(slug))

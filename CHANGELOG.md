@@ -25,7 +25,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `depremzede`). A shorter one matches the word plus Turkish suffixes only (`sel` finds `sellerde`
     but not `selam`), including consonant changes (`obruk` → `obruğu`). `word*` forces prefix
     matching, and `"word"` forces an exact match.
-  - It matches headlines, URL slugs and text, and every match comes with a reason.
+  - It matches headlines, URL slugs and text, and every match comes with a reason. A URL that ends
+    in a bare `haber-<id>` segment, as Akşam's do, is matched on the segment before it.
   - On 300 real headlines it reaches precision ≥ 0.96 and recall 1.00 for deprem, sel, heyelan, çığ
     and tsunami.
   - Known limitations: names that look inflected match (`Selim` for `sel`); words that drop a

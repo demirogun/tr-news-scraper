@@ -30,8 +30,20 @@ from tr_news_scraper.matching import KeywordQuery, url_slug_tokens
             "https://www.milliyet.com.tr/gundem/afad-sicak-gelismeyi-duyurdu-mugla-aciklarinda-deprem-7695882",
             ["afad", "sicak", "gelismeyi", "duyurdu", "mugla", "aciklarinda", "deprem"],
         ),
+        (  # Star: "-haber-<id>" inside the slug, and a trailing slash
+            "https://www.star.com.tr/dunya/pentagon-rusya-yarisa-girebilecek-durumda-degil-haber-1770667/",
+            ["pentagon", "rusya", "yarisa", "girebilecek", "durumda", "degil", "haber"],
+        ),
+        (  # Akşam: the slug is the segment before a final "haber-<id>"
+            "https://www.aksam.com.tr/guncel/eviniz-depreme-dayanikli-mi-adim-adim-hasar-tespiti/haber-1157527",
+            ["eviniz", "depreme", "dayanikli", "mi", "adim", "adim", "hasar", "tespiti"],
+        ),
+        (  # Sözcü: a letter before the id keeps the id in the slug
+            "https://www.sozcu.com.tr/hakkari-ye-kayyum-atandi-p54794",
+            ["hakkari", "ye", "kayyum", "atandi", "p54794"],
+        ),
     ],
-    ids=["cumhuriyet", "euronews", "trt-haber", "cnn-turk", "milliyet"],
+    ids=["cumhuriyet", "euronews", "trt-haber", "cnn-turk", "milliyet", "star", "aksam", "sozcu"],
 )
 def test_slug_tokens_for_each_outlets_url_shape(url: str, expected: list[str]) -> None:
     assert url_slug_tokens(url) == expected
@@ -44,6 +56,26 @@ def test_a_numeric_last_segment_falls_back_to_the_slug_before_it() -> None:
         "son",
         "durum",
     ]
+
+
+def test_a_final_haber_id_segment_falls_back_to_the_slug_before_it() -> None:
+    url = "https://www.aksam.com.tr/dunya/abdden-rusya-aciklamasi/haber-1346851"
+    assert url_slug_tokens(url) == ["abdden", "rusya", "aciklamasi"]
+    assert KeywordQuery(["deprem"]).match(
+        url="https://www.aksam.com.tr/guncel/eviniz-depreme-dayanikli-mi/haber-1157527"
+    )
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://x.example/haber-1346851", ["haber"]),  # nothing before it
+        ("https://x.example/gundem/haberler-1346851", ["haberler"]),  # another word
+        ("https://x.example/gundem/deprem-haber-1346851", ["deprem", "haber"]),  # inside a slug
+    ],
+)
+def test_only_a_whole_haber_id_segment_falls_back(url: str, expected: list[str]) -> None:
+    assert url_slug_tokens(url) == expected
 
 
 def test_a_trailing_slash_query_string_and_fragment_are_ignored() -> None:
