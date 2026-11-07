@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "certifi>=2026.10.18",
     "idna>=3.15,<4",
+    "lxml>=6.1,<7",
     "protego>=0.7,<1",
     "requests>=2.33,<3",
     "urllib3>=2.7,<3",
@@ -45,6 +46,7 @@ dev = [
   "ruff>=0.17",
   "mypy>=2.4",
   "types-requests",
+  "types-lxml>=2026.2.16",
 ]
 
 [build-system]

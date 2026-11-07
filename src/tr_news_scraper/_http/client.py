@@ -9,15 +9,16 @@ import re
 import threading
 import unicodedata
 from collections.abc import Callable, Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from http.cookiejar import DefaultCookiePolicy
 from pathlib import Path
 from types import TracebackType
 from typing import Self
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import requests
+from lxml import etree
 
 from tr_news_scraper import __version__
 from tr_news_scraper._http.clock import Clock, SystemClock
@@ -30,13 +31,22 @@ from tr_news_scraper._http.retry import (
     retry_delay,
 )
 from tr_news_scraper._http.robots import MAX_ROBOTS_BYTES, RobotsPolicy
-from tr_news_scraper._http.safety import check_url
-from tr_news_scraper.errors import Blocked, RequestFailed, ResponseTooLarge, RobotsDisallowed
+from tr_news_scraper._http.safety import check_public_https, check_url, parse_xml
+from tr_news_scraper.errors import (
+    Blocked,
+    HostNotAllowed,
+    RequestFailed,
+    ResponseTooLarge,
+    RobotsDisallowed,
+)
 
 logger = logging.getLogger("tr_news_scraper.http")
 
 PROJECT_URL = "https://github.com/demirogun/tr-news-scraper"
 ACCEPT_LANGUAGE = "tr-TR,tr;q=0.9,en;q=0.5"
+DEFAULT_MAX_BYTES = 64 * 1024**2
+MAX_REDIRECTS = 5
+REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 _UNSAFE_IN_CONTACT = frozenset("();")
 _HEADER_CHARSET = re.compile(r"charset\s*=\s*[\"']?([\w.:-]+)", re.IGNORECASE)
 _XML_ENCODING = re.compile(rb"^\s*<\?xml[^>]*\bencoding\s*=\s*[\"']([\w.:-]+)[\"']", re.IGNORECASE)
@@ -53,7 +63,7 @@ class HttpConfig:
     connect_timeout: float = 10.0
     read_timeout: float = 30.0
     max_retries: int = 3
-    max_bytes: int = 64 * 1024**2
+    max_bytes: int = DEFAULT_MAX_BYTES
     cache_dir: Path | None = None
     cache_max_bytes: int = 2 * 1024**3
 
@@ -87,11 +97,20 @@ class Response:
     content: bytes
     fetched_at: datetime
     from_cache: bool = False
+    max_bytes: int = field(default=DEFAULT_MAX_BYTES, repr=False)
 
     def text(self) -> str:
         """Decode the body (header charset, then the document's own declaration, then UTF-8)."""
         encoding = _charset(self.headers.get("content-type", ""), self.content)
         return unicodedata.normalize("NFC", self.content.decode(encoding, errors="replace"))
+
+    def xml(self) -> etree._Element:
+        """Parse the body as XML with entities, DTDs and network access off; gzip files included.
+
+        Raises ``ResponseTooLarge`` if a gzip body expands past the size cap, and
+        ``lxml.etree.XMLSyntaxError`` for malformed XML.
+        """
+        return parse_xml(self.content, max_bytes=self.max_bytes, url=self.url)
 
 
 class Http:
@@ -120,31 +139,57 @@ class Http:
     def get(self, url: str, *, allowed_hosts: Collection[str], accept: str = "*/*") -> Response:
         """Fetch ``url`` if the caller allows its host and the site's robots.txt allows us.
 
-        Raises ``HostNotAllowed`` or ``RobotsDisallowed`` before any request to ``url``.
+        Redirects are followed (at most five), and every hop is checked again. Raises
+        ``HostNotAllowed`` or ``RobotsDisallowed`` before any request to a refused URL.
         """
-        check_url(url, allowed_hosts)
-        interval = self.config.min_interval
+        current = url
+        for _ in range(MAX_REDIRECTS + 1):
+            check_url(current, allowed_hosts)
+            interval = self._admit(current)
+            response = self._fetch(current, accept, interval, limit=self.config.max_bytes)
+            location = response.headers.get("location")
+            if response.status not in REDIRECT_STATUSES or not location:
+                return response
+            current = urljoin(current, location)
+        raise RequestFailed(url, f"more than {MAX_REDIRECTS} redirects", attempts=MAX_REDIRECTS + 1)
+
+    def _admit(self, url: str) -> float:
+        """Apply robots.txt to ``url`` and return the pacing interval for its host."""
         if not self.config.obey_robots:
             self._warn_override_once(url)
-        elif not self._robots.allows(url):
+            return self.config.min_interval
+        if not self._robots.allows(url):
             logger.warning("robots.txt disallows %s", url)
             raise RobotsDisallowed(url)
-        else:
-            interval = max(interval, self._robots.crawl_delay(url) or 0.0)
-        return self._fetch(url, accept, interval, limit=self.config.max_bytes)
+        return max(self.config.min_interval, self._robots.crawl_delay(url) or 0.0)
 
     def _fetch_robots(self, robots_url: str) -> tuple[int | None, bytes]:
+        """Fetch robots.txt, following up to five redirects to any public HTTPS host.
+
+        Returns the final status and body; a redirect chain that never ends returns its last
+        3xx status, which RFC 9309 lets us treat as "no robots.txt".
+        """
+        current = robots_url
         try:
-            response = self._fetch(
-                robots_url,
-                "text/plain",
-                self.config.min_interval,
-                limit=MAX_ROBOTS_BYTES,
-                truncate=True,
-            )
+            for _ in range(MAX_REDIRECTS + 1):
+                check_public_https(current)
+                response = self._fetch(
+                    current,
+                    "text/plain",
+                    self.config.min_interval,
+                    limit=MAX_ROBOTS_BYTES,
+                    truncate=True,
+                )
+                location = response.headers.get("location")
+                if response.status not in REDIRECT_STATUSES or not location:
+                    return response.status, response.content
+                current = urljoin(current, location)
         except (Blocked, RequestFailed) as failure:
             return failure.status, b""
-        return response.status, response.content
+        except HostNotAllowed:
+            logger.warning("robots.txt for %s redirects somewhere we won't go", robots_url)
+            return None, b""
+        return response.status, b""
 
     def _warn_override_once(self, url: str) -> None:
         host = urlsplit(url).hostname or url
@@ -189,6 +234,7 @@ class Http:
                             headers={name.lower(): value for name, value in reply.headers.items()},
                             content=_read(reply, url, limit, truncate=truncate),
                             fetched_at=self._clock.now(),
+                            max_bytes=self.config.max_bytes,
                         )
                     headers = reply.headers
                 problem = f"HTTP {status}"
