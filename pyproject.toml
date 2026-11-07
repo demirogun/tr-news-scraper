@@ -73,7 +73,7 @@ select = ["E", "W", "F", "I", "B", "UP", "S", "BLE", "DTZ", "T20", "PT", "SIM", 
 allowed-confusables = ["ı", "’", "ʼ"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["S101", "T20"]          # tests may assert and print diagnostics
 "scripts/**" = ["T20"]
 
 [tool.mypy]

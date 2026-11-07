@@ -18,6 +18,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     retries temporary failures up to three times, with growing waits or the server's `Retry-After`.
   - It caches successful responses in your user cache folder (at most 2 GiB), so a repeated search
     doesn't download everything again. An offline mode answers only from the cache.
+- `tr_news_scraper.matching`, keyword matching that understands Turkish:
+  - Correct Turkish casing (`IŞIK` → `ışık`, `İSTANBUL` → `istanbul`), and folding to match URL slugs
+    (`Kahramanmaraş` → `kahramanmaras`).
+  - A keyword of five or more letters matches words that start with it (`deprem` finds
+    `depremzede`). A shorter one matches the word plus Turkish suffixes only (`sel` finds `sellerde`
+    but not `selam`), including consonant changes (`obruk` → `obruğu`). `word*` forces prefix
+    matching, and `"word"` forces an exact match.
+  - It matches headlines, URL slugs and text, and every match comes with a reason.
+  - On 300 real headlines it reaches precision ≥ 0.96 and recall 1.00 for deprem, sel, heyelan, çığ
+    and tsunami.
+  - Known limitations: names that look inflected match (`Selim` for `sel`); words that drop a
+    vowel need their other form as a second keyword (`kayıp` → `kaybı`); and some outlets replace
+    "ı" in URLs, so their URLs can miss words their headlines contain.
 
 ### Changed
 - Requires Python 3.12 or newer. Python 3.10 reached end of life in October 2026, and the exact
