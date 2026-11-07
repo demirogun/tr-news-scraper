@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 from collections.abc import Callable
 from datetime import timedelta
 from email.utils import format_datetime
@@ -9,6 +10,7 @@ from email.utils import format_datetime
 import pytest
 import requests
 from requests_mock import Mocker
+from urllib3.exceptions import ProtocolError, ReadTimeoutError
 
 from tr_news_scraper._http import Http
 from tr_news_scraper._http.retry import parse_retry_after, retry_delay
@@ -22,6 +24,19 @@ ALLOWED = {"news.example.com"}
 
 def page_requests(mock: Mocker) -> int:
     return sum(1 for request in mock.request_history if request.path == "/haber/1")
+
+
+class BrokenBody(io.RawIOBase):
+    """A response body that breaks off after the status line arrived, like a stalled server."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: object) -> int:
+        raise self._error
 
 
 @pytest.mark.parametrize(
@@ -84,6 +99,19 @@ def test_a_read_timeout_is_retried(
     make_http: Callable[..., Http], requests_mock: Mocker, clock: FakeClock
 ) -> None:
     requests_mock.get(PAGE, [{"exc": requests.exceptions.ReadTimeout}, {"text": "ok"}])
+    assert make_http(min_interval=0).get(PAGE, allowed_hosts=ALLOWED).text() == "ok"
+    assert clock.sleeps == [2.0]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ReadTimeoutError(None, PAGE, "stalled mid-body"), ProtocolError("connection broken")],
+    ids=["read-timeout", "connection-broken"],
+)
+def test_a_body_that_breaks_off_mid_download_is_retried(
+    make_http: Callable[..., Http], requests_mock: Mocker, clock: FakeClock, error: Exception
+) -> None:
+    requests_mock.get(PAGE, [{"body": BrokenBody(error)}, {"text": "ok"}])
     assert make_http(min_interval=0).get(PAGE, allowed_hosts=ALLOWED).text() == "ok"
     assert clock.sleeps == [2.0]
 

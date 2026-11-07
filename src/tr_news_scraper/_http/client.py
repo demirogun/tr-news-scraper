@@ -245,6 +245,9 @@ class Http:
                 requests.Timeout,
                 requests.exceptions.ChunkedEncodingError,
             ) as error:
+                # Also raised when the body breaks off after a 200 arrived: a network failure,
+                # not an HTTP status, so forget the status and retry.
+                status = None
                 problem = type(error).__name__
             except requests.RequestException as error:
                 raise RequestFailed(url, type(error).__name__, attempts=attempt) from error
