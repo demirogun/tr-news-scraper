@@ -39,6 +39,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   layout.
 - Dependencies are declared as version ranges instead of 31 exact pins, so security fixes reach you
   without a new tr-news-scraper release.
+- tzdata is a new dependency. Archive times without an offset are read in Türkiye's time zone
+  (Europe/Istanbul), including the UTC+2 winters before 2016, and Windows has no time zone
+  database of its own.
 
 ### Removed
 - `NewsScraper` and the `tr_news_scraper.tr_news_scraper` module. Importing it now raises an
