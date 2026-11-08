@@ -1,4 +1,5 @@
-"""fetch's outlets run at once, and Ctrl+C stops them; a second run resumes (F8, F10)."""
+"""fetch's outlets run at once but read one page at a time, and Ctrl+C stops them; a second run
+resumes (F8, F10)."""
 
 from __future__ import annotations
 
@@ -12,9 +13,11 @@ import pandas as pd
 import pytest
 from requests_mock import Mocker
 
+import tr_news_scraper._extract as extract_module
 import tr_news_scraper._fetch as fetch_module
 from tests.fetch.conftest import HTML, skeleton
 from tests.http.conftest import FakeClock
+from tr_news_scraper._extract import extract
 from tr_news_scraper._fetch import FetchRun, _fetch
 from tr_news_scraper._http import Http
 from tr_news_scraper.outlets import Outlet
@@ -59,6 +62,58 @@ def test_outlets_are_fetched_at_the_same_time(http: Http, monkeypatch: pytest.Mo
     with pytest.raises(Exception, match="no article could be read"):
         run(http, articles)
     assert workers() == []
+
+
+def test_pages_are_read_one_at_a_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    # trafilatura parses every page with one lxml parser, and lxml then gives every thread that
+    # uses it the same string dictionary. Outlet threads reading at once aborted the process
+    # (CI, Linux, lxml 6.1.3), so downloads overlap but trafilatura runs in one thread at a time.
+    reading = 0
+    most = 0
+    counting = threading.Lock()
+    together = threading.Barrier(4, timeout=5)
+
+    def read(html: str, **settings: object) -> None:
+        nonlocal reading, most
+        with counting:
+            reading += 1
+            most = max(most, reading)
+        time.sleep(0.05)
+        with counting:
+            reading -= 1
+
+    def outlet() -> None:
+        together.wait()
+        extract("<html></html>", "https://www.star.com.tr/yasam/haber-1/")
+
+    monkeypatch.setattr("trafilatura.bare_extraction", read)
+    threads = [threading.Thread(target=outlet) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert most == 1
+
+
+def test_a_pages_trees_are_freed_before_another_page_is_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Freeing a page's lxml trees touches the shared dictionary too.
+    freed: list[bool] = []
+
+    class Page:
+        title = "Kahramanmaraş'ta deprem"
+        author = None
+        date = "2023-02-06T04:17:00"
+        text = "Örnek metin."
+
+        def __del__(self) -> None:
+            freed.append(extract_module.ONE_PAGE_AT_A_TIME.locked())
+
+    monkeypatch.setattr("trafilatura.bare_extraction", lambda html, **settings: Page())
+    found = extract("<html></html>", "https://www.star.com.tr/yasam/haber-1/")
+    assert found.title == "Kahramanmaraş'ta deprem"
+    assert freed == [True]
 
 
 def test_ctrl_c_stops_before_the_next_article_and_a_rerun_resumes(

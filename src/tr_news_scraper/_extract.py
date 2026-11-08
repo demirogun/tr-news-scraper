@@ -7,6 +7,7 @@ It's imported on first use, so importing the package stays light (F12).
 from __future__ import annotations
 
 import json
+import threading
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
@@ -19,6 +20,13 @@ SETTINGS = "precision, original publication date, no extensive date search, no c
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 MAX_PAGE_CHARACTERS = 8_000_000
 """Pages above this aren't parsed. Article pages are at most about 470,000 characters."""
+ONE_PAGE_AT_A_TIME = threading.Lock()
+"""Held while trafilatura reads a page and while that page's trees are freed.
+
+trafilatura parses every page with one lxml parser, and lxml then gives every thread that uses
+it the same libxml2 string dictionary, which two threads can't safely change at once. Outlet
+threads reading pages together aborted the process (CI, Linux, lxml 6.1.3). Downloads still
+overlap: only reading, about 20 ms a page, takes turns."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,26 +56,28 @@ def extract(html: str, url: str) -> Extracted:
         return Extracted(error=f"the page is too large to read ({millions:.1f} million characters)")
     from trafilatura import bare_extraction
 
-    document: Any = bare_extraction(
-        html,
-        url=url,
-        with_metadata=True,
-        favor_precision=True,
-        include_comments=False,
-        date_extraction_params={
-            "original_date": True,
-            "extensive_search": False,
-            "outputformat": DATE_FORMAT,
-        },
-    )
-    if document is None:
-        return Extracted(error="no article text found")
-    found = Extracted(
-        title=_line(document.title),
-        author=_line(document.author),
-        published=_published(document.date),
-        text=_paragraphs(document.text),
-    )
+    with ONE_PAGE_AT_A_TIME:
+        document: Any = bare_extraction(
+            html,
+            url=url,
+            with_metadata=True,
+            favor_precision=True,
+            include_comments=False,
+            date_extraction_params={
+                "original_date": True,
+                "extensive_search": False,
+                "outputformat": DATE_FORMAT,
+            },
+        )
+        if document is None:
+            return Extracted(error="no article text found")
+        found = Extracted(
+            title=_line(document.title),
+            author=_line(document.author),
+            published=_published(document.date),
+            text=_paragraphs(document.text),
+        )
+        del document  # frees the page's lxml trees before another thread reads a page
     if found.text is None:
         return Extracted(found.title, found.author, found.published, error="no article text found")
     return found
