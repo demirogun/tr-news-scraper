@@ -5,6 +5,8 @@ on:
     branches: [main, v1-rewrite]
   pull_request:
   workflow_dispatch:
+  # release.yml runs this whole workflow before it publishes anything.
+  workflow_call:
 
 permissions:
   contents: read
@@ -34,6 +36,29 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
+
+  checks:
+    name: Workflows and citation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.15"
+          enable-cache: false
+      # zizmor audits the workflows: template injection, excess permissions, cache poisoning,
+      # unpinned and impostor actions. The token lets it look actions up; it's read-only.
+      - run: uvx zizmor@1.32.0 .github/workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: uvx check-jsonschema@0.39.0 --builtin-schema vendor.github-workflows .github/workflows/*.yml
+      - run: >-
+          uvx check-jsonschema@0.39.0 --schemafile
+          https://raw.githubusercontent.com/citation-file-format/citation-file-format/1.2.0/schema.json
+          CITATION.cff
 
   test:
     name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
