@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-08
+
 1.0 is a rewrite. It finds articles by keyword and date range in the archives of seven
 Turkish-language outlets, using only what their robots.txt allows. It reads the articles' text
 and reports what each outlet could and couldn't provide. Use it from Python (`search()`,
@@ -235,5 +237,6 @@ The columns 0.1.0 returned map like this:
 - First release: `NewsScraper` collects news articles from CNN Türk, Hürriyet, Milliyet, Sabah and
   Posta for one or more keywords.
 
-[Unreleased]: https://github.com/demirogun/tr-news-scraper/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/demirogun/tr-news-scraper/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/demirogun/tr-news-scraper/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/demirogun/tr-news-scraper/releases/tag/v0.1.0
