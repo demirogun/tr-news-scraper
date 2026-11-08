@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+1.0 is a rewrite. It finds articles by keyword and date range in the archives of seven
+Turkish-language outlets, using only what their robots.txt allows. It reads the articles' text
+and reports what each outlet could and couldn't provide. Use it from Python (`search()`,
+`fetch()`, `coverage()`) or with the new `trnews` command. It needs Python 3.12 or newer, and
+[Migrating from 0.1.0](#migrating-from-010) explains what changed for 0.1.0's users.
+
 ### Added
 - A polite network layer that every request goes through:
   - It identifies itself as `tr-news-scraper/<version> (+https://github.com/demirogun/tr-news-scraper)`.

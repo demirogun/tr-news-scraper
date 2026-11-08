@@ -145,3 +145,9 @@ def test_main_checks_prints_notes_and_explains_its_usage(
 
 def test_the_repositorys_own_changelog_has_0_1_0s_notes() -> None:
     assert load_release().notes("0.1.0", ROOT).startswith("### Added\n- First release:")
+
+
+def test_the_repositorys_own_version_is_ready_to_tag() -> None:
+    release = load_release()
+    version = release.project_version(ROOT)
+    assert release.check(f"v{version}", ROOT) == []

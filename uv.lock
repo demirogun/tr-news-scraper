@@ -1212,7 +1212,7 @@ wheels = [
 
 [[package]]
 name = "tr-news-scraper"
-version = "1.0.0.dev0"
+version = "1.0.0rc1"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },

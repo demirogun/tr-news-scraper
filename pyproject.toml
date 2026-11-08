@@ -1,6 +1,6 @@
 [project]
 name = "tr-news-scraper"
-version = "1.0.0.dev0"
+version = "1.0.0rc1"
 description = "Search Turkish news archives by keyword and date range, politely."
 readme = "README.md"
 requires-python = ">=3.12"
