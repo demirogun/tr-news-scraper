@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: tr-news-scraper
+abstract: >-
+  Search Turkish news archives by keyword and date range, politely: robots.txt is obeyed, each
+  site gets one request per second, and every outlet's results come with a report.
+authors:
+  - given-names: Ogün
+    family-names: Demir
+  - given-names: Aydoğan
+    family-names: Avcıoğlu
+version: "0.1.0"
+date-released: "2024-01-10"
+doi: 10.5281/zenodo.10509649
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.10509649
+    description: The concept DOI of every version; it resolves to the latest one.
+license: MIT
+repository-code: "https://github.com/demirogun/tr-news-scraper"
+url: "https://pypi.org/project/tr-news-scraper/"
+keywords:
+  - turkish
+  - news
+  - sitemap
+  - robots.txt
+  - research
+  - text mining
