@@ -1,7 +1,8 @@
 """Check built distributions before release.
 
-The wheel must hold only the ``tr_news_scraper`` package and its metadata, and no archive may
-contain the local planning docs (specs, plans, idea docs). Usage::
+The wheel must hold only the ``tr_news_scraper`` package and its metadata and must declare the
+``trnews`` command, and no archive may contain the local planning docs (specs, plans, idea docs).
+Usage::
 
     uv build
     uv run python scripts/check_dist.py dist
@@ -9,6 +10,7 @@ contain the local planning docs (specs, plans, idea docs). Usage::
 
 from __future__ import annotations
 
+import configparser
 import re
 import sys
 import tarfile
@@ -17,6 +19,21 @@ from pathlib import Path
 
 WHEEL_ALLOWED = re.compile(r"^(tr_news_scraper/|tr_news_scraper-[^/]+\.dist-info/)")
 PLANNING_DOC = re.compile(r"(^|/)(SPEC[^/]*\.md$|docs/ideas/|docs/intent/|tasks/)")
+TRNEWS = "tr_news_scraper._cli:main"
+
+
+def declares_trnews(wheel: zipfile.ZipFile) -> bool:
+    """Whether the wheel's metadata installs the ``trnews`` command."""
+    for name in wheel.namelist():
+        if not name.endswith(".dist-info/entry_points.txt"):
+            continue
+        entry_points = configparser.ConfigParser(delimiters=("=",), interpolation=None)
+        try:
+            entry_points.read_string(wheel.read(name).decode("utf-8"))
+        except (configparser.Error, UnicodeDecodeError):
+            return False
+        return entry_points.get("console_scripts", "trnews", fallback="").strip() == TRNEWS
+    return False
 
 
 def problems(dist: Path) -> list[str]:
@@ -33,6 +50,10 @@ def problems(dist: Path) -> list[str]:
                 for name in archive.namelist()
                 if not WHEEL_ALLOWED.match(name)
             ]
+            if not declares_trnews(archive):
+                found.append(
+                    f"{wheel.name}: no trnews command (console_scripts entry point {TRNEWS})"
+                )
     for sdist in sdists:
         with tarfile.open(sdist) as archive:
             found += [

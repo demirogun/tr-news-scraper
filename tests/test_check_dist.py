@@ -12,7 +12,15 @@ from types import ModuleType
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check_dist.py"
-GOOD_WHEEL = ["tr_news_scraper/__init__.py", "tr_news_scraper-1.0.0.dist-info/METADATA"]
+ENTRY_POINTS = "tr_news_scraper-1.0.0.dist-info/entry_points.txt"
+GOOD_WHEEL = [
+    "tr_news_scraper/__init__.py",
+    "tr_news_scraper-1.0.0.dist-info/METADATA",
+    ENTRY_POINTS,
+]
+TRNEWS = """[console_scripts]
+trnews = tr_news_scraper._cli:main
+"""
 GOOD_SDIST = [
     "tr_news_scraper-1.0.0/pyproject.toml",
     "tr_news_scraper-1.0.0/src/tr_news_scraper/__init__.py",
@@ -28,12 +36,14 @@ def load_checker() -> ModuleType:
     return module
 
 
-def make_dist(tmp_path: Path, wheel_names: list[str], sdist_names: list[str]) -> Path:
+def make_dist(
+    tmp_path: Path, wheel_names: list[str], sdist_names: list[str], *, entry_points: str = TRNEWS
+) -> Path:
     dist = tmp_path / "dist"
     dist.mkdir()
     with zipfile.ZipFile(dist / "tr_news_scraper-1.0.0-py3-none-any.whl", "w") as wheel:
         for name in wheel_names:
-            wheel.writestr(name, "x")
+            wheel.writestr(name, entry_points if name == ENTRY_POINTS else "x")
     with tarfile.open(dist / "tr_news_scraper-1.0.0.tar.gz", "w:gz") as sdist:
         for name in sdist_names:
             info = tarfile.TarInfo(name)
@@ -79,3 +89,28 @@ def test_main_exits_nonzero_when_problems_are_found(tmp_path: Path) -> None:
 def test_main_exits_zero_for_clean_archives(tmp_path: Path) -> None:
     dist = make_dist(tmp_path, GOOD_WHEEL, GOOD_SDIST)
     assert load_checker().main(["check_dist.py", str(dist)]) == 0
+
+
+NO_TRNEWS = (
+    "tr_news_scraper-1.0.0-py3-none-any.whl: no trnews command "
+    "(console_scripts entry point tr_news_scraper._cli:main)"
+)
+
+
+def test_a_wheel_without_entry_points_is_reported(tmp_path: Path) -> None:
+    wheel = [name for name in GOOD_WHEEL if name != ENTRY_POINTS]
+    dist = make_dist(tmp_path, wheel, GOOD_SDIST)
+    assert load_checker().problems(dist) == [NO_TRNEWS]
+
+
+@pytest.mark.parametrize(
+    "entry_points",
+    [
+        "[console_scripts]\ntrnews = tr_news_scraper.cli:main\n",
+        "[gui_scripts]\ntrnews = tr_news_scraper._cli:main\n",
+        "[console_scripts]\nnews = tr_news_scraper._cli:main\n",
+    ],
+)
+def test_a_wheel_whose_trnews_is_wrong_is_reported(tmp_path: Path, entry_points: str) -> None:
+    dist = make_dist(tmp_path, GOOD_WHEEL, GOOD_SDIST, entry_points=entry_points)
+    assert load_checker().problems(dist) == [NO_TRNEWS]

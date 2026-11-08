@@ -42,6 +42,15 @@ Homepage = "https://github.com/demirogun/tr-news-scraper"
 Changelog = "https://github.com/demirogun/tr-news-scraper/blob/main/CHANGELOG.md"
 Issues = "https://github.com/demirogun/tr-news-scraper/issues"
 
+[project.scripts]
+trnews = "tr_news_scraper._cli:main"
+
+[project.optional-dependencies]
+# Parquet output and input in trnews (-o NAME.parquet) and pandas' to_parquet/read_parquet.
+parquet = [
+    "pyarrow>=16",
+]
+
 [dependency-groups]
 dev = [
   "pytest>=9",
@@ -52,6 +61,7 @@ dev = [
   "types-requests",
   "types-lxml>=2026.2.16",
   "pandas-stubs>=2.2.3",
+  "pyarrow>=16",
 ]
 
 [build-system]
