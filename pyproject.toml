@@ -12,7 +12,8 @@ authors = [
 ]
 keywords = ["turkish", "news", "scraper", "sitemap", "robots.txt", "research"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
   "Intended Audience :: Science/Research",
   "Natural Language :: Turkish",
   "Operating System :: OS Independent",
@@ -38,9 +39,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/demirogun/tr-news-scraper"
+Documentation = "https://github.com/demirogun/tr-news-scraper#readme"
+Source = "https://github.com/demirogun/tr-news-scraper"
 Changelog = "https://github.com/demirogun/tr-news-scraper/blob/main/CHANGELOG.md"
 Issues = "https://github.com/demirogun/tr-news-scraper/issues"
+Citation = "https://doi.org/10.5281/zenodo.10509649"
 
 [project.scripts]
 trnews = "tr_news_scraper._cli:main"
