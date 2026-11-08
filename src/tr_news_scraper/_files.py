@@ -8,6 +8,7 @@ and reading a file restores the column types of ``search()`` and ``fetch()``.
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import importlib.util
 import json
@@ -123,23 +124,60 @@ def save(
     separator: str = ",",
     remove: Sequence[Path] = (),
 ) -> None:
-    """Write every table and report file, then move them into place together, so a failure or
-    Ctrl+C leaves no half-written file (C9). Files in ``remove`` that exist are deleted after:
-    an earlier run's files that this run replaces with nothing."""
+    """Write every table and report file next to its place, then swap them all in (C9).
+
+    A failure or Ctrl+C leaves no half-written file, and never this run's files beside an earlier
+    run's: if one file can't be swapped in (it's open in another program, say), every file goes
+    back to what it was. Files in ``remove`` that exist are deleted: an earlier run's files that
+    this run replaces with nothing."""
     staged: dict[Path, Path] = {}
     try:
         for path, content in files.items():
-            temporary = path.with_name(f".{path.name}.{os.getpid()}.part")
+            temporary = _beside(path, "part")
             staged[path] = temporary
             _write(temporary, content, path=path, separator=separator)
-        for path, temporary in staged.items():
-            _move(temporary, path)
-        for path in remove:
-            if path not in files:
-                _remove(path)
+        _swap(staged, [path for path in remove if path not in files])
     finally:
         for temporary in staged.values():
             temporary.unlink(missing_ok=True)
+
+
+def _beside(path: Path, kind: str) -> Path:
+    """A hidden name in ``path``'s folder for this process's ``kind`` of copy of it."""
+    return path.with_name(f".{path.name}.{os.getpid()}.{kind}")
+
+
+def _swap(staged: Mapping[Path, Path], removed: Sequence[Path]) -> None:
+    """Move the files there now aside, then the new ones in; if any step fails, undo both.
+
+    A rename within a folder replaces a file whole. On Windows, a file another program holds open
+    can't be moved aside, so the swap stops before any new file is in place."""
+    aside: dict[Path, Path] = {}
+    placed: list[Path] = []
+    try:
+        for path in [*staged, *removed]:
+            if path.exists():
+                if path in removed:
+                    problem = f"couldn't remove the old {path}"
+                else:
+                    problem = f"couldn't replace {path}"
+                old = _beside(path, "old")
+                _move(path, old, problem)
+                aside[path] = old
+        for path, temporary in staged.items():
+            _move(temporary, path, f"couldn't write {path}")
+            placed.append(path)
+    except BaseException:
+        for path in placed:
+            with contextlib.suppress(OSError):
+                path.unlink()
+        for path, old in aside.items():
+            with contextlib.suppress(OSError):
+                old.replace(path)
+        raise
+    for old in aside.values():
+        with contextlib.suppress(OSError):
+            old.unlink()
 
 
 def _write(
@@ -161,18 +199,11 @@ def _write(
         raise WriteError(f"couldn't write {path}: {error.strerror or error}") from error
 
 
-def _move(temporary: Path, path: Path) -> None:
+def _move(source: Path, target: Path, problem: str) -> None:
     try:
-        temporary.replace(path)
+        source.replace(target)
     except OSError as error:
-        raise WriteError(f"couldn't write {path}: {error.strerror or error}") from error
-
-
-def _remove(path: Path) -> None:
-    try:
-        path.unlink(missing_ok=True)
-    except OSError as error:
-        raise WriteError(f"couldn't remove the old {path}: {error.strerror or error}") from error
+        raise WriteError(f"{problem}: {error.strerror or error}") from error
 
 
 def write_csv(frame: pd.DataFrame, path: Path, *, separator: str = ",") -> None:

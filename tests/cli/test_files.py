@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -229,10 +230,94 @@ def test_a_failed_save_leaves_no_file_behind(
 
 def test_save_removes_an_earlier_file_this_run_replaces_with_nothing(tmp_path: Path) -> None:
     files = outputs_for(tmp_path / "found.csv")
+    files.articles.write_text("old", encoding="utf-8")
     files.outside.write_text("old", encoding="utf-8")
     save({files.articles: fetched_table()}, remove=[files.outside])
-    assert files.articles.exists()
-    assert not files.outside.exists()
+    assert files.articles.read_text(encoding="utf-8-sig") != "old"
+    assert [path.name for path in tmp_path.iterdir()] == [files.articles.name]
+
+
+def earlier_run(tmp_path: Path) -> _files.Outputs:
+    """An earlier run's three files, each holding its own name."""
+    files = outputs_for(tmp_path / "found.csv")
+    for path in files.paths:
+        path.write_text(f"earlier {path.name}", encoding="utf-8")
+    return files
+
+
+def assert_earlier_run_kept(tmp_path: Path, files: _files.Outputs) -> None:
+    for path in files.paths:
+        assert path.read_text(encoding="utf-8") == f"earlier {path.name}"
+    assert sorted(path.name for path in tmp_path.iterdir()) == sorted(p.name for p in files.paths)
+
+
+def refuse(monkeypatch: pytest.MonkeyPatch, busy: Path, stop: BaseException) -> None:
+    """Make renaming ``busy`` fail, as Windows does while another program has the file open."""
+    rename = Path.replace
+
+    def replace(self: Path, target: Any) -> Path:
+        if busy in (self, Path(target)):
+            raise stop
+        return rename(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace)
+
+
+@pytest.mark.parametrize("busy", ["articles", "outside", "report"])
+def test_a_file_that_cant_be_replaced_leaves_the_earlier_run_as_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, busy: str
+) -> None:
+    # A CSV open in Excel can't be replaced on Windows. Swapping in the files before it would
+    # leave this run's table next to the earlier run's report, whose range fetch reads.
+    files = earlier_run(tmp_path)
+    locked = getattr(files, busy)
+    refuse(monkeypatch, locked, PermissionError(13, "Permission denied"))
+    content: dict[Path, Any] = {
+        files.articles: fetched_table(),
+        files.outside: fetched_table(),
+        files.report: {"tool": "trnews"},
+    }
+    with pytest.raises(WriteError, match=re.escape(f"{locked}: Permission denied")):
+        save(content)
+    assert_earlier_run_kept(tmp_path, files)
+
+
+def test_an_earlier_file_that_cant_be_removed_leaves_the_earlier_run_as_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    files = earlier_run(tmp_path)
+    refuse(monkeypatch, files.outside, PermissionError(13, "Permission denied"))
+    content: dict[Path, Any] = {files.articles: fetched_table(), files.report: {"tool": "trnews"}}
+    with pytest.raises(WriteError, match=re.escape(f"the old {files.outside}: Permission denied")):
+        save(content, remove=[files.outside])
+    assert_earlier_run_kept(tmp_path, files)
+
+
+@pytest.mark.parametrize("stop", [OSError(5, "Input/output error"), KeyboardInterrupt()])
+@pytest.mark.parametrize("earlier", [True, False])
+def test_a_save_stopped_while_moving_files_in_puts_back_what_was_there(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: BaseException, earlier: bool
+) -> None:
+    files = earlier_run(tmp_path) if earlier else outputs_for(tmp_path / "found.csv")
+    rename = Path.replace
+
+    def replace(self: Path, target: Any) -> Path:
+        if self.name.endswith(".part") and Path(target) == files.report:
+            raise stop
+        return rename(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace)
+    content: dict[Path, Any] = {
+        files.articles: fetched_table(),
+        files.outside: fetched_table(),
+        files.report: {"tool": "trnews"},
+    }
+    with pytest.raises(WriteError if isinstance(stop, OSError) else KeyboardInterrupt):
+        save(content)
+    if earlier:
+        assert_earlier_run_kept(tmp_path, files)
+    else:
+        assert list(tmp_path.iterdir()) == []
 
 
 def test_the_report_records_what_was_asked_and_found() -> None:

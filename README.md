@@ -68,7 +68,8 @@ trnews coverage --check
   and what each outlet reported.
 - `trnews fetch` takes its keywords and range from that file, so searching and fetching in two
   steps gives the same rows as `--fetch`.
-- No file is replaced without `--overwrite`.
+- No file is replaced without `--overwrite`. A run's files are replaced together or not at all:
+  if one is open in Excel, say, they all stay as they were.
 - `trnews --help` lists every option.
 
 ## What you get

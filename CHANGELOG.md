@@ -107,7 +107,8 @@ and reports what each outlet could and couldn't provide. Use it from Python (`se
   ```
 
   - `--to` is the last day, included. Every argument and output file is checked before the
-    first request, and no file is replaced without `--overwrite`.
+    first request, and no file is replaced without `--overwrite`. A run's files are replaced
+    together or not at all: if one is open in Excel, say, they all stay as they were.
   - Data goes to files, never to the terminal:
     - CSV in UTF-8 with a byte-order mark, so Excel shows Turkish letters. `--separator ";"`
       suits Excel with Turkish regional settings.
