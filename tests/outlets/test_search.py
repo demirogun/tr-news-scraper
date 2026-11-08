@@ -226,6 +226,31 @@ def test_reading_stops_at_max_pages_inside_the_range() -> None:
     assert max(site.fetched) == 50
 
 
+def test_a_start_day_that_goes_on_to_the_next_page_is_read_to_its_end() -> None:
+    # Results carry days, not times, so a page whose oldest result is on the start day can't
+    # show that the day is over: the next page can hold more of it. Reading stops only below
+    # the start. Stopping on the start day would drop these articles and still report "full".
+    start, end = date(2023, 2, 1), date(2023, 3, 1)
+    days = {
+        1: [date(2023, 2, 2)] * 2 + [start] * 2,
+        2: [start] * 3 + [date(2023, 1, 31)],
+    }
+
+    def fetch(number: int) -> Page:
+        url = page_url(OUTLET, "deprem", number)
+        on_page = days.get(number, [])
+        results = tuple(
+            Result(f"{BASE}/gundem/p{number}-{i}", day, None, url) for i, day in enumerate(on_page)
+        )
+        return Page(number, url, results, tuple(on_page), len(on_page))
+
+    outcome = Outcome()
+    results = list(results_in_range(fetch, start, end, 1000, outcome))
+    assert [result.day for result in results].count(start) == 5
+    assert outcome.pages == [1, 2]
+    assert not outcome.exhausted
+
+
 def test_an_empty_search_has_no_results() -> None:
     site = FakeSite(pages=0)
     results, outcome = run(site, day_of(10), day_of(1))
