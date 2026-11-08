@@ -88,9 +88,45 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - An article that can't be read keeps the reason in its `error` column, such as "robots.txt
     disallows it". `FetchFailed` is raised only when no article could be read.
   - It also takes a DataFrame with `outlet` and `url` columns, such as a filtered
-    `result.articles`, and an optional `progress` callback.
+    `result.articles` or a table read back from a file, with `keywords=` to fill `text_matched`
+    and an optional `progress` callback.
 - `coverage()`, which lists what each outlet's archive covers without making a request.
   `coverage(check=True)` also checks every archive now, with two requests per outlet.
+- `trnews`, a command line for the same search, for people who'd rather not write Python:
+
+  ```bash
+  trnews search deprem tsunami --from 2023-02-01 --to 2023-02-28 --fetch -o deprem.csv
+  trnews fetch picked.csv -o picked-text.jsonl
+  trnews coverage --check
+  ```
+
+  - `--to` is the last day, included. Every argument and output file is checked before the
+    first request, and no file is replaced without `--overwrite`.
+  - Data goes to files, never to the terminal:
+    - CSV in UTF-8 with a byte-order mark, so Excel shows Turkish letters. `--separator ";"`
+      suits Excel with Turkish regional settings.
+    - JSONL.
+    - Parquet, with the new `[parquet]` extra: `pip install "tr-news-scraper[parquet]"`.
+
+    Times are written in ISO 8601 with their offset.
+  - Beside every table, `NAME.report.json` records:
+    - what was searched, when, and with which version;
+    - each outlet's report and every gap.
+
+    It never records the `--contact` address. Rows whose page dates them outside the range go to
+    `NAME.outside.EXT`.
+  - `trnews fetch FILE` reads any table with `outlet` and `url` columns, such as a filtered search
+    output. It takes the keywords and range from FILE's report file, so fetching in two steps
+    gives the same rows as `--fetch`.
+  - On a terminal, fetching shows one status line with each outlet's progress and the time left.
+    Ctrl+C says how far it got; the articles read are already in the cache, so the same command
+    continues.
+  - Exit codes:
+    - 0: done, even if nothing matched;
+    - 1: nothing could be read, or a file couldn't be written;
+    - 2: a usage mistake;
+    - 130: stopped with Ctrl+C.
+  - `python -m tr_news_scraper` runs the same command where the `trnews` script isn't on the PATH.
 - `tr_news_scraper.outlets`, the news archives 1.0 reads, described as data you can extend:
   - Six built-in outlets publish monthly sitemaps that their robots.txt allows:
     - Cumhuriyet, from 1962 (every month since July 2008);
@@ -147,6 +183,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   URLs that name private or reserved network addresses are refused.
 - XML from websites is parsed with entity expansion, DTD loading and network access turned off.
   Response sizes are capped after decompression (64 MiB by default), which stops compression bombs.
+- In the CSV files `trnews` writes, a text cell that a spreadsheet would run as a formula (it
+  starts with `=`, `+`, `-`, `@`, a tab or a carriage return) begins with an apostrophe. Text
+  taken from web pages then can't run as a formula when the file opens in Excel. `trnews fetch`
+  removes the apostrophe again on reading, and JSONL and Parquet keep every value as it is.
 
 ### Migrating from 0.1.0
 0.1.0 scraped the search pages of five outlets and returned a pandas DataFrame:
