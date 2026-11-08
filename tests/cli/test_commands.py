@@ -11,7 +11,13 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from tests.cli.conftest import Library, fetch_result, fetched_table, search_result
+from tests.cli.conftest import (
+    HAS_PYARROW,
+    Library,
+    fetch_result,
+    fetched_table,
+    search_result,
+)
 from tr_news_scraper import FetchResult, SearchResult, _cli, coverage
 from tr_news_scraper._cli import ROBOTS_WARNING, main
 from tr_news_scraper._files import WriteError, read_table
@@ -138,6 +144,13 @@ def test_a_file_that_cant_be_written_exits_with_1(
 
 
 SEARCH = ["search", "deprem", "tsunami", "--from", "2023-02-01", "--to", "2023-02-28"]
+FORMATS = [
+    ".csv",
+    ".jsonl",
+    pytest.param(
+        ".parquet", marks=pytest.mark.skipif(not HAS_PYARROW, reason="needs the parquet extra")
+    ),
+]
 
 
 def read_json(path: Path) -> Any:
@@ -328,3 +341,135 @@ def test_quiet_leaves_only_errors(
     assert main([*SEARCH, "--overwrite", "-o", str(tmp_path / "found.csv")]) == 0
     err = capsys.readouterr().err
     assert "\n  warning: Sözcü failed: HTTP 503\n  Star: 3 matching articles\n" in err
+
+
+def searched(library: Library, tmp_path: Path, name: str = "found.csv") -> Path:
+    """The table and report file trnews search writes, through the stand-in."""
+    path = tmp_path / name
+    assert main([*SEARCH, "-q", "-o", str(path)]) == 0
+    library.searches.clear()
+    return path
+
+
+@pytest.mark.parametrize("suffix", FORMATS)
+def test_fetch_reads_a_table_and_reuses_its_report(
+    library: Library, tmp_path: Path, capsys: pytest.CaptureFixture[str], suffix: str
+) -> None:
+    found = searched(library, tmp_path, f"found{suffix}")
+    output = tmp_path / "fetched.jsonl"
+    assert main(["fetch", str(found), "-o", str(output)]) == 0
+    [call] = library.fetches
+    pd.testing.assert_frame_equal(call["articles"], read_table(found))
+    assert (call["keywords"], call["start"], call["end"]) == (
+        ("deprem", "tsunami"),
+        date(2023, 2, 1),
+        date(2023, 3, 1),
+    )
+    report = read_json(tmp_path / "fetched.report.json")
+    assert (report["command"], report["input"]) == ("fetch", found.name)
+    assert report["search"] == read_json(tmp_path / "found.report.json")["search"]
+    assert (report["from"], report["to"]) == ("2023-02-01", "2023-02-28")
+    assert len(read_table(output)) == 2
+    assert len(read_table(tmp_path / "fetched.outside.jsonl")) == 1
+    assert capsys.readouterr().err.startswith("Reading 3 articles ...\n")
+
+
+def test_fetch_options_win_over_the_report(library: Library, tmp_path: Path) -> None:
+    found = searched(library, tmp_path)
+    argv = ["fetch", str(found), "-q", "-o", str(tmp_path / "fetched.csv")]
+    assert main([*argv, "--from", "2023-02-06", "--to", "2023-02-06"]) == 0
+    [call] = library.fetches
+    assert (call["keywords"], call["start"], call["end"]) == (
+        ("deprem", "tsunami"),
+        date(2023, 2, 6),
+        date(2023, 2, 7),
+    )
+
+
+def test_fetch_without_a_report_has_no_keywords_or_range(library: Library, tmp_path: Path) -> None:
+    table = tmp_path / "picked.csv"
+    table.write_text("outlet,url\nstar,https://www.star.com.tr/guncel/a\n", encoding="utf-8")
+    assert main(["fetch", str(table), "-q", "-o", str(tmp_path / "fetched.csv")]) == 0
+    [call] = library.fetches
+    assert (call["keywords"], call["start"], call["end"]) == (None, None, None)
+    report = read_json(tmp_path / "fetched.report.json")
+    assert (report["search"], report["searched_at"], report["input"]) == (None, None, "picked.csv")
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        (
+            "outlet,link\nstar,https://x/1\n",
+            "needs the columns outlet and url; it has: outlet, link",
+        ),
+        ("outlet,url\nstar,https://x/1\nstar,\n", "row 2 has no outlet or no url"),
+        (
+            "outlet,url\nhurriyet,https://x/1\n",
+            "there's no built-in outlet 'hurriyet'; choose from",
+        ),
+    ],
+)
+def test_a_table_fetch_cant_use_is_a_usage_error(
+    library: Library,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    content: str,
+    message: str,
+) -> None:
+    table = tmp_path / "picked.csv"
+    table.write_text(content, encoding="utf-8")
+    assert main(["fetch", str(table), "-o", str(tmp_path / "fetched.csv")]) == 2
+    assert message in capsys.readouterr().err
+    assert library.fetches == []
+
+
+@pytest.mark.parametrize(
+    ("report", "message"),
+    [
+        ('{"keywords": "deprem"}', "keywords must be a list of words"),
+        ('{"keywords": ["a"]}', "too short"),
+        ('{"from": "2023-02-01", "to": null}', "records the range '2023-02-01' to None"),
+        ('{"from": "2023-03-01", "to": "2023-02-01"}', "which isn't valid"),
+        ("[]", "isn't a trnews report file"),
+    ],
+)
+def test_a_damaged_report_file_is_a_usage_error(
+    library: Library,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    report: str,
+    message: str,
+) -> None:
+    table = tmp_path / "picked.csv"
+    table.write_text("outlet,url\nstar,https://x/1\n", encoding="utf-8")
+    (tmp_path / "picked.report.json").write_text(report, encoding="utf-8")
+    assert main(["fetch", str(table), "-o", str(tmp_path / "fetched.csv")]) == 2
+    assert message in capsys.readouterr().err
+    assert library.fetches == []
+
+
+def test_fetch_of_a_missing_file_or_half_a_range_is_a_usage_error(
+    library: Library, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = ["-o", str(tmp_path / "fetched.csv")]
+    assert main(["fetch", str(tmp_path / "nowhere.csv"), *output]) == 2
+    assert "nowhere.csv doesn't exist" in capsys.readouterr().err
+    found = searched(library, tmp_path)
+    assert main(["fetch", str(found), *output, "--from", "2023-02-01"]) == 2
+    assert "give both --from and --to, or neither" in capsys.readouterr().err
+    assert library.fetches == []
+
+
+def test_ctrl_c_in_fetch_says_how_to_continue(
+    library: Library, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def stopped(progress: Any) -> FetchResult:
+        progress("star", 1, 1)
+        raise KeyboardInterrupt
+
+    found = searched(library, tmp_path)
+    library.on_fetch = stopped
+    assert main(["fetch", str(found), "-q", "-o", str(tmp_path / "fetched.csv")]) == 130
+    assert capsys.readouterr().err.startswith("Stopped after 1 of 3 articles; no file was written.")
+    assert not (tmp_path / "fetched.csv").exists()

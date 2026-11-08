@@ -27,6 +27,9 @@ from tr_news_scraper._files import (
     check_writable,
     make_report,
     outputs_for,
+    read_report,
+    read_table,
+    report_path,
     save,
     table_format,
 )
@@ -155,6 +158,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="also download every article and read its text, author and time",
     )
     find.set_defaults(run=_search_command)
+    take = commands.add_parser(
+        "fetch",
+        parents=[_network_options(), _cache_options(), _file_options()],
+        help="read the articles in a table, such as one trnews search wrote",
+        description=(
+            "Download every article in FILE, any table with outlet and url columns, and read its "
+            "text, author and publication time. Without --from and --to, the keywords and range "
+            "come from FILE's report file, as with search --fetch."
+        ),
+    )
+    take.add_argument(
+        "file", type=Path, metavar="FILE", help="the articles: a .csv, .jsonl or .parquet table"
+    )
+    take.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        required=True,
+        metavar="FILE",
+        help="where the articles go: NAME.csv, NAME.jsonl or NAME.parquet",
+    )
+    take.add_argument(
+        "--from",
+        dest="first",
+        metavar="DATE",
+        help="first day; rows whose page dates them outside the range go to NAME.outside",
+    )
+    take.add_argument("--to", dest="last", metavar="DATE", help="last day, included")
+    take.set_defaults(run=_fetch_command)
     show = commands.add_parser(
         "coverage",
         parents=[_network_options(), _file_options()],
@@ -217,7 +249,9 @@ def _file_options() -> argparse.ArgumentParser:
     group.add_argument(
         "--separator",
         choices=SEPARATORS,
-        help='the CSV separator, "," by default; ";" suits Excel with Turkish regional settings',
+        metavar="SEP",
+        help='the CSV separator: "," (the default) or ";", which suits Excel with Turkish '
+        "regional settings",
     )
     group.add_argument("--overwrite", action="store_true", help="replace files that exist")
     loudness = group.add_mutually_exclusive_group()
@@ -463,6 +497,93 @@ def _span(start: date, end: date) -> str:
 
 def _join(items: Sequence[str]) -> str:
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def _fetch_command(args: argparse.Namespace, console: Console) -> int:
+    source: Path = args.file
+    files = outputs_for(args.output)
+    separator = check_separator(args, args.output)
+    given = range_from(args.first, args.last)
+    table = read_table(source)
+    check_table(table, source)
+    earlier = read_report(report_path(source))
+    keywords, recorded = scope_from(earlier, report_path(source))
+    start, end = given or recorded or (None, None)
+    check_writable(files.paths, overwrite=args.overwrite)
+    check_requests(args, console)
+    fetched = _read(
+        table,
+        len(table),
+        args,
+        console,
+        keywords=keywords or None,
+        start=start,
+        end=end,
+    )
+    if fetched is None:
+        return STOPPED
+    _save_outputs(
+        files,
+        fetched.articles,
+        fetched.outside,
+        args=args,
+        console=console,
+        separator=separator,
+        command="fetch",
+        options={
+            "obey_robots": not args.ignore_robots_txt,
+            "offline": bool(args.offline),
+            "refresh": bool(args.refresh),
+        },
+        fetched=fetched,
+        earlier=earlier,
+        source=source,
+    )
+    return OK
+
+
+def check_table(table: pd.DataFrame, path: Path) -> None:
+    """The table has what fetch() needs: an outlet and a url on every row, and only built-in
+    outlets (C6)."""
+    if "outlet" not in table.columns or "url" not in table.columns:
+        found = ", ".join(map(str, table.columns)) or "none"
+        raise UsageError(f"{path} needs the columns outlet and url; it has: {found}")
+    blank = (table["outlet"].isna() | table["url"].isna()).tolist()
+    if any(blank):
+        raise UsageError(f"{path}: row {blank.index(True) + 1} has no outlet or no url")
+    known = [outlet.id for outlet in builtin()]
+    unknown = sorted({str(outlet) for outlet in table["outlet"]} - set(known))
+    if unknown:
+        raise UsageError(
+            f"{path}: there's no built-in outlet {', '.join(map(repr, unknown))}; "
+            f"choose from {', '.join(known)}"
+        )
+
+
+def scope_from(
+    report: dict[str, Any] | None, path: Path
+) -> tuple[tuple[str, ...], tuple[date, date] | None]:
+    """The keywords and range a table's report file records, for ``trnews fetch`` (D8)."""
+    if report is None:
+        return (), None
+    words = report.get("keywords") or []
+    if not isinstance(words, list) or not all(isinstance(word, str) for word in words):
+        raise UsageError(f"{path}: keywords must be a list of words")
+    try:
+        keywords = keywords_from(words) if words else ()
+    except UsageError as error:
+        raise UsageError(f"{path}: {error}") from error
+    first, last = report.get("from"), report.get("to")
+    if first is None and last is None:
+        return keywords, None
+    try:
+        if not isinstance(first, str) or not isinstance(last, str):
+            raise UsageError("from and to must both be days")
+        return keywords, range_from(first, last)
+    except UsageError as error:
+        raise UsageError(
+            f"{path} records the range {first!r} to {last!r}, which isn't valid"
+        ) from error
 
 
 def _coverage_command(args: argparse.Namespace, console: Console) -> int:

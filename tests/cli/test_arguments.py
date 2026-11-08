@@ -40,6 +40,15 @@ def test_python_dash_m_runs_trnews(
     assert capsys.readouterr().out.strip() == VERSION
 
 
+def test_help_lists_the_three_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--help"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    listed = [line.split()[0] for line in lines if line[:4] == "    " and line[4] != " "]
+    assert listed == ["search", "fetch", "coverage"]
+    assert main(["fetch", "--help"]) == 0
+    assert "--ignore-robots-txt" in capsys.readouterr().out
+
+
 def test_a_command_is_required(capsys: pytest.CaptureFixture[str]) -> None:
     assert main([]) == 2
     assert "the following arguments are required: COMMAND" in capsys.readouterr().err
