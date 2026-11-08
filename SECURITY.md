@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---|---|
-| 1.x | Yes, once 1.0.0 is released |
+| 1.x | Yes |
 | 0.1.x | No. 0.1.0 pins dependencies with known vulnerabilities; please upgrade. |
 
 ## Reporting a vulnerability
