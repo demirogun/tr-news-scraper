@@ -461,6 +461,31 @@ def test_fetch_of_a_missing_file_or_half_a_range_is_a_usage_error(
     assert library.fetches == []
 
 
+def test_a_report_with_keywords_and_no_range_gives_the_keywords(
+    library: Library, tmp_path: Path
+) -> None:
+    table = tmp_path / "picked.csv"
+    table.write_text("outlet,url\nstar,https://x/1\n", encoding="utf-8")
+    (tmp_path / "picked.report.json").write_text('{"keywords": ["Deprem"]}', encoding="utf-8")
+    assert main(["fetch", str(table), "-q", "-o", str(tmp_path / "fetched.csv")]) == 0
+    [call] = library.fetches
+    assert (call["keywords"], call["start"], call["end"]) == (("Deprem",), None, None)
+
+
+def test_ctrl_c_while_writing_exits_with_130(
+    library: Library,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def stopped(*args: Any, **kwargs: Any) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(_cli, "save", stopped)
+    assert main([*SEARCH, "-q", "-o", str(tmp_path / "found.csv")]) == 130
+    assert capsys.readouterr().err == "Stopped.\n"
+
+
 def test_ctrl_c_in_fetch_says_how_to_continue(
     library: Library, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

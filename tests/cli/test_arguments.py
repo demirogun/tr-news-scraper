@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import io
 import runpy
 import sys
@@ -38,6 +39,12 @@ def test_python_dash_m_runs_trnews(
         runpy.run_module("tr_news_scraper", run_name="__main__", alter_sys=True)
     assert stop.value.code == 0
     assert capsys.readouterr().out.strip() == VERSION
+
+
+def test_importing_the_main_module_runs_nothing(capsys: pytest.CaptureFixture[str]) -> None:
+    sys.modules.pop("tr_news_scraper.__main__", None)
+    importlib.import_module("tr_news_scraper.__main__")
+    assert capsys.readouterr() == ("", "")
 
 
 def test_help_lists_the_three_commands(capsys: pytest.CaptureFixture[str]) -> None:

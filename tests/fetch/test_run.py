@@ -156,11 +156,13 @@ def test_progress_is_reported_after_every_article_and_logged(
     messages = [r.getMessage() for r in caplog.records if r.name == "tr_news_scraper.fetch"]
     assert messages[0].startswith("Star: 2 of 3 articles read, about ")
     assert messages[0].endswith(" left")
+    progress_lines = [getattr(r, "progress", False) for r in caplog.records]
+    assert progress_lines == [True, False]
     assert messages[1] == "Star: 3 articles read: 3 downloaded, 0 from the cache, 0 failed"
 
 
 def test_the_time_left_is_said_in_seconds_minutes_or_hours() -> None:
-    assert [fetch_module._duration(s) for s in (0.2, 45, 600, 2_400, 9_000)] == [
+    assert [fetch_module.duration(s) for s in (0.2, 45, 600, 2_400, 9_000)] == [
         "1 s",
         "45 s",
         "10 min",

@@ -95,7 +95,8 @@ def fetch_outlet(
                 outlet.name,
                 done,
                 len(rows),
-                _duration(left),
+                duration(left),
+                extra={"progress": True},
             )
     logger.info(
         "%s: %d articles read: %d downloaded, %d from the cache, %d failed",
@@ -143,7 +144,8 @@ def _read(
     return Fetched(extracted, page.fetched_at)
 
 
-def _duration(seconds: float) -> str:
+def duration(seconds: float) -> str:
+    """A time left, roughly: "45 s", "10 min" or "2.5 h"."""
     if seconds < 90:
         return f"{max(round(seconds), 1)} s"
     if seconds < 90 * 60:

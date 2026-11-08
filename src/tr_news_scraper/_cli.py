@@ -8,9 +8,13 @@ standard error, and standard output carries only ``trnews coverage``'s table.
 from __future__ import annotations
 
 import argparse
+import io
 import logging
+import math
+import shutil
 import sys
 import threading
+import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import date, timedelta
@@ -18,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TextIO
 
 from tr_news_scraper import coverage, fetch, search
+from tr_news_scraper._fetch import duration
 from tr_news_scraper._files import (
     SEPARATORS,
     Outputs,
@@ -54,25 +59,86 @@ COVERAGE_SHOWN = ("outlet", "name", "method", "earliest", "headlines")
 HEALTH_SHOWN = ("ok", "oldest", "newest", "sample")
 SHOWN_INFO = frozenset({"tr_news_scraper.search", "tr_news_scraper.fetch"})
 """The loggers whose INFO lines show without -v: one line per outlet, and fetch's progress."""
+REDRAW_EVERY = 0.25
+"""Seconds between status line updates; articles from the cache come much faster."""
+ESTIMATE_AFTER = 5.0
+"""Seconds of fetching before the status line estimates the time left."""
 
 Command = Callable[[argparse.Namespace, "Console"], int]
 
 
 class Console:
     """What trnews says on standard error: progress and the summary unless quiet; warnings and
-    errors always (C7)."""
+    errors always (C7).
 
-    def __init__(self, stream: TextIO, *, quiet: bool = False) -> None:
+    On a terminal, a status line can be redrawn in place below the messages. Messages from any
+    thread erase it, print, and draw it again.
+    """
+
+    def __init__(
+        self,
+        stream: TextIO,
+        *,
+        quiet: bool = False,
+        live: bool | None = None,
+        width: Callable[[], int] = lambda: shutil.get_terminal_size().columns,
+    ) -> None:
         self.stream = stream
         self.quiet = quiet
+        self.live = not quiet and (_is_terminal(stream) if live is None else live)
+        self._width = width
+        self._status = ""
+        self._lock = threading.RLock()
+
+    @property
+    def shown(self) -> str:
+        """The status line on screen now, if any."""
+        return self._status
 
     def say(self, text: str) -> None:
         if not self.quiet:
             self.write(text)
 
     def write(self, text: str) -> None:
-        self.stream.write(text + "\n")
-        self.stream.flush()
+        with self._lock:
+            self._erase()
+            self.stream.write(text + "\n")
+            self.stream.write(self._status)
+            self.stream.flush()
+
+    def status(self, text: str) -> None:
+        """Show ``text`` in the status line, cut to the terminal's width."""
+        if not self.live:
+            return
+        room = max(self._width() - 1, 10)
+        line = text if len(text) <= room else text[: room - 1] + "…"
+        with self._lock:
+            self.stream.write("\r" + line.ljust(len(self._status)))
+            self._status = line
+            self.stream.flush()
+
+    def end_status(self) -> None:
+        with self._lock:
+            self._erase()
+            self._status = ""
+            self.stream.flush()
+
+    def _erase(self) -> None:
+        if self._status:
+            self.stream.write("\r" + " " * len(self._status) + "\r")
+
+
+def _is_terminal(stream: TextIO) -> bool:
+    try:
+        return stream.isatty()
+    except (AttributeError, ValueError):  # a replaced or closed stream
+        return False
+
+
+def _tolerant(stream: TextIO) -> None:
+    """Make ``stream`` replace letters its encoding can't write, instead of crashing (C8)."""
+    if isinstance(stream, io.TextIOWrapper) and stream.errors != "replace":
+        stream.reconfigure(errors="replace")
 
 
 class _LogHandler(logging.Handler):
@@ -86,7 +152,11 @@ class _LogHandler(logging.Handler):
     def filter(self, record: logging.LogRecord) -> bool:
         if self.console.quiet:
             return record.levelno >= logging.ERROR
-        return record.levelno >= logging.WARNING or self.verbose or record.name in SHOWN_INFO
+        if record.levelno >= logging.WARNING:
+            return True
+        if self.console.live and getattr(record, "progress", False):
+            return False  # the status line shows it
+        return self.verbose or record.name in SHOWN_INFO
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -264,6 +334,8 @@ def _file_options() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run ``trnews`` with ``argv`` (default: the command line) and return its exit code."""
+    _tolerant(sys.stdout)
+    _tolerant(sys.stderr)
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
@@ -353,21 +425,61 @@ def check_separator(args: argparse.Namespace, path: Path | None) -> str:
 
 
 class Tracker:
-    """How far fetch has got, outlet by outlet; workers report from their own threads."""
+    """How far fetch has got, outlet by outlet; workers report from their own threads. On a
+    terminal it keeps the console's status line current, with a time estimate (C7)."""
 
-    def __init__(self, total: int) -> None:
+    def __init__(
+        self,
+        total: int,
+        console: Console,
+        names: dict[str, str],
+        *,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self.total = total
-        self._counts: dict[str, int] = {}
+        self.console = console
+        self.names = names
+        self._clock = clock
+        self._started = clock()
+        self._drawn = -math.inf
+        self._counts: dict[str, tuple[int, int]] = {}
         self._lock = threading.Lock()
 
     def update(self, outlet: str, done: int, total: int) -> None:
         with self._lock:
-            self._counts[outlet] = done
+            self._counts[outlet] = (done, total)
+            now = self._clock()
+            if not self.console.live or (now - self._drawn < REDRAW_EVERY and done < total):
+                return
+            self._drawn = now
+            line = self._line(now)
+        self.console.status(line)
 
     @property
     def done(self) -> int:
         with self._lock:
-            return sum(self._counts.values())
+            return sum(done for done, _ in self._counts.values())
+
+    def _line(self, now: float) -> str:
+        parts = [
+            f"{self.names.get(outlet, outlet)} {done:,}/{total:,}"
+            for outlet, (done, total) in self._counts.items()
+        ]
+        line = f"Reading {_count(self.total, 'article')}: {' · '.join(parts)}"
+        left = self._left(now)
+        return line if left is None else f"{line} · about {duration(left)} left"
+
+    def _left(self, now: float) -> float | None:
+        """The slowest unfinished outlet's time left at its pace so far; none early on."""
+        elapsed = now - self._started
+        lefts = [
+            (total - done) * elapsed / done
+            for done, total in self._counts.values()
+            if 0 < done < total
+        ]
+        if elapsed < ESTIMATE_AFTER or not lefts:
+            return None
+        return max(lefts)
 
 
 def _search_command(args: argparse.Namespace, console: Console) -> int:
@@ -436,7 +548,7 @@ def _read(
     **scope: Any,
 ) -> FetchResult | None:
     """Fetch every article, or ``None`` after saying how to continue if stopped (C9)."""
-    tracker = Tracker(total)
+    tracker = Tracker(total, console, {outlet.id: outlet.name for outlet in builtin()})
     console.say(f"Reading {_count(total, 'article')} ...")
     try:
         fetched = fetch(
@@ -450,6 +562,7 @@ def _read(
             **scope,
         )
     except KeyboardInterrupt:
+        console.end_status()
         console.write(
             f"Stopped after {tracker.done:,} of {_count(total, 'article')}; no file was written."
         )
@@ -457,6 +570,8 @@ def _read(
             "The articles read are saved in the cache: run the same command again to continue."
         )
         return None
+    finally:
+        console.end_status()
     console.say(str(fetched))
     return fetched
 
