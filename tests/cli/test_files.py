@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
-from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import pytest
 
+from tests.cli.conftest import HAS_PYARROW, fetch_result, fetched_table, search_result
 from tr_news_scraper import _files
-from tr_news_scraper._fetched import FetchResult
 from tr_news_scraper._files import (
     PARQUET_HINT,
     UsageError,
@@ -24,18 +23,8 @@ from tr_news_scraper._files import (
     read_table,
     save,
 )
-from tr_news_scraper._table import (
-    DAY_DTYPE,
-    TIME_DTYPE,
-    SearchResult,
-    day_series,
-    string_series,
-    time_series,
-)
-from tr_news_scraper.outlets import get
-from tr_news_scraper.outlets._dates import ISTANBUL
+from tr_news_scraper._table import DAY_DTYPE, TIME_DTYPE
 
-HAS_PYARROW = importlib.util.find_spec("pyarrow") is not None
 FORMATS = [
     ".csv",
     ".jsonl",
@@ -44,39 +33,6 @@ FORMATS = [
     ),
 ]
 BOM = b"\xef\xbb\xbf"
-LINES = 'Birinci satır, virgüllü.\nİkinci satır; noktalı virgüllü ve "tırnaklı".'
-
-
-def fetched_table() -> pd.DataFrame:
-    """Search's columns plus fetch's, with every type, empty values and awkward text."""
-    return pd.DataFrame(
-        {
-            "outlet": string_series(["aksam", "sozcu", "star"]),
-            "month": string_series(["2023-02", "2023-02", "2023-02"]),
-            "day": day_series([date(2023, 2, 6), None, date(2023, 2, 7)]),
-            "title": string_series(["Akşam'da deprem", None, '=HYPERLINK("http://x", "x")']),
-            "url": string_series(
-                [
-                    "https://www.aksam.com.tr/guncel/deprem/haber-1",
-                    "https://www.sozcu.com.tr/deprem-2",
-                    "https://www.star.com.tr/guncel/deprem-3",
-                ]
-            ),
-            "matched": string_series(["deprem", "deprem, tsunami", "deprem"]),
-            "reasons": string_series(["title", "url", "title"]),
-            "lastmod": time_series([datetime(2023, 2, 6, 4, 17, tzinfo=ISTANBUL), None, None]),
-            "source": string_series(["sitemap", "sitemap", "sitemap"]),
-            "published": time_series([datetime(2023, 2, 6, 4, 2, tzinfo=ISTANBUL), None, None]),
-            "author": string_series(["Ayşe Demir", None, "'=x"]),
-            "text": string_series([LINES, None, "-15 derece"]),
-            "text_matched": string_series(["deprem", "", ""]),
-            "copy_group": pd.Series([1, None, 1], dtype="Int64"),
-            "fetched_at": time_series(
-                [datetime(2026, 11, 8, 14, 3, 12, 345678, tzinfo=ISTANBUL), None, None]
-            ),
-            "error": string_series([None, "HTTP 404", None]),
-        }
-    )
 
 
 def write(frame: pd.DataFrame, path: Path, separator: str = ",") -> Path:
@@ -279,35 +235,6 @@ def test_save_removes_an_earlier_file_this_run_replaces_with_nothing(tmp_path: P
     assert not files.outside.exists()
 
 
-def search_result(detail: str) -> SearchResult:
-    return SearchResult(
-        articles=fetched_table().iloc[:, :9],
-        report=pd.DataFrame({"outlet": string_series(["star"]), "detail": string_series([detail])}),
-        gaps=pd.DataFrame({"outlet": string_series([]), "reason": string_series([])}),
-        keywords=("deprem", "tsunami"),
-        start=date(2023, 2, 1),
-        end=date(2023, 3, 1),
-        outlets=(get("star"), get("aksam")),
-        searched_at=datetime(2026, 11, 8, 14, 0, tzinfo=ISTANBUL),
-        version="1.0.0",
-    )
-
-
-def fetch_result() -> FetchResult:
-    table = fetched_table()
-    return FetchResult(
-        articles=table.iloc[:2],
-        outside=table.iloc[2:],
-        report=pd.DataFrame({"outlet": string_series(["star"]), "failed": [1]}),
-        keywords=("deprem", "tsunami"),
-        start=date(2023, 2, 1),
-        end=date(2023, 3, 1),
-        outlets=(get("star"), get("aksam")),
-        fetched_at=datetime(2026, 11, 8, 15, 0, tzinfo=ISTANBUL),
-        version="1.0.0",
-    )
-
-
 def test_the_report_records_what_was_asked_and_found() -> None:
     report = make_report(
         command="search",
@@ -321,12 +248,20 @@ def test_the_report_records_what_was_asked_and_found() -> None:
     assert report["command"] == "search"
     assert report["keywords"] == ["deprem", "tsunami"]
     assert (report["from"], report["to"]) == ("2023-02-01", "2023-02-28")
-    assert report["outlets"] == ["star", "aksam"]
+    assert report["outlets"] == ["aksam", "sozcu", "star"]
     assert report["searched_at"] == "2026-11-08T14:00:00+03:00"
     assert report["fetched_at"] == "2026-11-08T15:00:00+03:00"
     assert report["files"] == {"articles": {"file": "found.csv", "rows": 2}, "outside": None}
-    assert report["search"]["report"] == [{"outlet": "star", "detail": "2 months not read"}]
-    assert report["fetch"] == {"version": "1.0.0", "report": [{"outlet": "star", "failed": 1}]}
+    assert report["search"]["report"][0] == {
+        "outlet": "aksam",
+        "name": "Akşam",
+        "status": "ok",
+        "articles": 1,
+        "detail": "2 months not read",
+    }
+    assert report["search"]["gaps"][0]["reason"] == "before-archive"
+    assert report["fetch"]["version"] == "1.0.0"
+    assert [row["failed"] for row in report["fetch"]["report"]] == [0, 1, 0]
     assert json.loads(json.dumps(report)) == report
 
 
@@ -366,7 +301,7 @@ def test_a_two_step_fetch_carries_the_search_over(tmp_path: Path) -> None:
     assert report["input"] == "found.csv"
     assert report["search"] == earlier["search"]
     assert report["searched_at"] == earlier["searched_at"]
-    assert report["outlets"] == ["star", "aksam"]
+    assert report["outlets"] == ["aksam", "sozcu", "star"]
 
 
 def test_a_missing_or_damaged_report_file(tmp_path: Path) -> None:

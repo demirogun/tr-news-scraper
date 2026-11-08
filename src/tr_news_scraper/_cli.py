@@ -10,19 +10,23 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
-from tr_news_scraper import coverage
+from tr_news_scraper import coverage, fetch, search
 from tr_news_scraper._files import (
     SEPARATORS,
+    Outputs,
     UsageError,
     WriteError,
     cells,
     check_writable,
+    make_report,
+    outputs_for,
     save,
     table_format,
 )
@@ -31,10 +35,12 @@ from tr_news_scraper._search import parse_day, parse_keywords
 from tr_news_scraper._version import __version__
 from tr_news_scraper.errors import FetchFailed, SearchFailed
 from tr_news_scraper.matching import KeywordQuery
-from tr_news_scraper.outlets import get
+from tr_news_scraper.outlets import builtin, get
 
 if TYPE_CHECKING:
     import pandas as pd
+
+    from tr_news_scraper import FetchResult, SearchResult
 
 OK, FAILED, USAGE, STOPPED = 0, 1, 2, 130
 ROBOTS_WARNING = (
@@ -75,9 +81,9 @@ class _LogHandler(logging.Handler):
         self.verbose = verbose
 
     def filter(self, record: logging.LogRecord) -> bool:
-        return record.levelno >= logging.WARNING or (
-            not self.console.quiet and (self.verbose or record.name in SHOWN_INFO)
-        )
+        if self.console.quiet:
+            return record.levelno >= logging.ERROR
+        return record.levelno >= logging.WARNING or self.verbose or record.name in SHOWN_INFO
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -114,6 +120,41 @@ def build_parser() -> argparse.ArgumentParser:
         "--version", action="version", version=f"%(prog)s (tr-news-scraper) {__version__}"
     )
     commands = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
+    find = commands.add_parser(
+        "search",
+        parents=[_network_options(), _cache_options(), _file_options()],
+        help="find articles whose headline or URL names a keyword",
+        description=(
+            "Find news articles whose headline or URL names any of the keywords, published from "
+            "--from to --to (both included, in Türkiye). Writes the articles to FILE and what was "
+            "searched to NAME.report.json beside it; with --fetch, also each article's text."
+        ),
+    )
+    find.add_argument(
+        "keywords",
+        nargs="+",
+        metavar="KEYWORD",
+        help='a word or phrase; any of them may match. "word*" matches as a prefix',
+    )
+    find.add_argument("--from", dest="first", required=True, metavar="DATE", help="first day")
+    find.add_argument("--to", dest="last", required=True, metavar="DATE", help="last day, included")
+    find.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        required=True,
+        metavar="FILE",
+        help="where the articles go: NAME.csv, NAME.jsonl or NAME.parquet",
+    )
+    find.add_argument(
+        "--outlets", metavar="ID,...", help="built-in outlet ids, comma-separated; all by default"
+    )
+    find.add_argument(
+        "--fetch",
+        action="store_true",
+        help="also download every article and read its text, author and time",
+    )
+    find.set_defaults(run=_search_command)
     show = commands.add_parser(
         "coverage",
         parents=[_network_options(), _file_options()],
@@ -156,6 +197,20 @@ def _network_options() -> argparse.ArgumentParser:
     return options
 
 
+def _cache_options() -> argparse.ArgumentParser:
+    options = argparse.ArgumentParser(add_help=False)
+    group = options.add_argument_group("cache")
+    group.add_argument(
+        "--offline", action="store_true", help="answer only from the cache, without a request"
+    )
+    group.add_argument(
+        "--refresh",
+        action="store_true",
+        help="download articles again even if they're in the cache",
+    )
+    return options
+
+
 def _file_options() -> argparse.ArgumentParser:
     options = argparse.ArgumentParser(add_help=False)
     group = options.add_argument_group("output")
@@ -191,6 +246,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (SearchFailed, FetchFailed, WriteError) as error:
         console.write(f"trnews {args.command}: {error}")
         return FAILED
+    except KeyboardInterrupt:
+        console.write("Stopped.")
+        return STOPPED
 
 
 def keywords_from(given: Sequence[str]) -> tuple[str, ...]:
@@ -258,6 +316,153 @@ def check_separator(args: argparse.Namespace, path: Path | None) -> str:
     if args.separator is not None and (path is None or table_format(path) != ".csv"):
         raise UsageError("--separator applies only to .csv files")
     return str(args.separator or ",")
+
+
+class Tracker:
+    """How far fetch has got, outlet by outlet; workers report from their own threads."""
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+        self._counts: dict[str, int] = {}
+        self._lock = threading.Lock()
+
+    def update(self, outlet: str, done: int, total: int) -> None:
+        with self._lock:
+            self._counts[outlet] = done
+
+    @property
+    def done(self) -> int:
+        with self._lock:
+            return sum(self._counts.values())
+
+
+def _search_command(args: argparse.Namespace, console: Console) -> int:
+    keywords = keywords_from(args.keywords)
+    span = range_from(args.first, args.last)
+    if span is None:  # argparse requires --from and --to
+        raise UsageError("give --from and --to")
+    start, end = span
+    outlets = outlets_from(args.outlets)
+    files = outputs_for(args.output)
+    separator = check_separator(args, args.output)
+    if args.refresh and not args.fetch:
+        raise UsageError("--refresh applies only with --fetch")
+    check_writable(files.paths, overwrite=args.overwrite)
+    check_requests(args, console)
+    searched = len(builtin()) if outlets is None else len(outlets)
+    console.say(
+        f"Searching {_count(searched, 'outlet')} for {', '.join(keywords)}, {_span(start, end)} ..."
+    )
+    try:
+        found = search(
+            keywords,
+            start,
+            end,
+            outlets=outlets,
+            contact=args.contact,
+            obey_robots=not args.ignore_robots_txt,
+            offline=args.offline,
+            cache_dir=args.cache_dir,
+        )
+    except KeyboardInterrupt:
+        console.write("Stopped while searching; no file was written.")
+        return STOPPED
+    console.say(str(found))
+    fetched = None
+    if args.fetch:
+        fetched = _read(found, len(found.articles), args, console)
+        if fetched is None:
+            return STOPPED
+    _save_outputs(
+        files,
+        found.articles if fetched is None else fetched.articles,
+        None if fetched is None else fetched.outside,
+        args=args,
+        console=console,
+        separator=separator,
+        command="search",
+        options={
+            "outlets": None if outlets is None else list(outlets),
+            "fetch": bool(args.fetch),
+            "obey_robots": not args.ignore_robots_txt,
+            "offline": bool(args.offline),
+            "refresh": bool(args.refresh),
+        },
+        found=found,
+        fetched=fetched,
+    )
+    return OK
+
+
+def _read(
+    articles: SearchResult | pd.DataFrame,
+    total: int,
+    args: argparse.Namespace,
+    console: Console,
+    **scope: Any,
+) -> FetchResult | None:
+    """Fetch every article, or ``None`` after saying how to continue if stopped (C9)."""
+    tracker = Tracker(total)
+    console.say(f"Reading {_count(total, 'article')} ...")
+    try:
+        fetched = fetch(
+            articles,
+            progress=tracker.update,
+            contact=args.contact,
+            obey_robots=not args.ignore_robots_txt,
+            offline=args.offline,
+            refresh=args.refresh,
+            cache_dir=args.cache_dir,
+            **scope,
+        )
+    except KeyboardInterrupt:
+        console.write(
+            f"Stopped after {tracker.done:,} of {_count(total, 'article')}; no file was written."
+        )
+        console.write(
+            "The articles read are saved in the cache: run the same command again to continue."
+        )
+        return None
+    console.say(str(fetched))
+    return fetched
+
+
+def _save_outputs(
+    files: Outputs,
+    articles: pd.DataFrame,
+    outside: pd.DataFrame | None,
+    *,
+    args: argparse.Namespace,
+    console: Console,
+    separator: str,
+    **report: Any,
+) -> None:
+    """Write the articles, the outside rows if there are any, and the report file (C3–C5)."""
+    content: dict[Path, pd.DataFrame | dict[str, Any]] = {files.articles: articles}
+    entries: dict[str, tuple[Path, int] | None] = {
+        "articles": (files.articles, len(articles)),
+        "outside": None,
+    }
+    if outside is not None and len(outside):
+        content[files.outside] = outside
+        entries["outside"] = (files.outside, len(outside))
+    content[files.report] = make_report(files=entries, contact=args.contact, **report)
+    save(content, separator=separator, remove=[files.outside])
+    written = [f"{path} ({_count(rows, 'row')})" for path, rows in filter(None, entries.values())]
+    console.say(f"Wrote {_join([*written, str(files.report)])}.")
+
+
+def _count(number: int, word: str) -> str:
+    return f"{number:,} {word if number == 1 else word + 's'}"
+
+
+def _span(start: date, end: date) -> str:
+    last = end - timedelta(days=1)
+    return str(start) if last == start else f"{start} to {last}"
+
+
+def _join(items: Sequence[str]) -> str:
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
 def _coverage_command(args: argparse.Namespace, console: Console) -> int:
