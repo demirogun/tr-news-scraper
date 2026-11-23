@@ -273,16 +273,16 @@ class Skeleton:
             ancestors = {a.tag for a in element.iterancestors() if isinstance(a.tag, str)}
             if element.tag == "a" and _AUTHOR_PAGE.search(element.get("href") or ""):
                 # A link to an author's page shows the author's name.
-                text = element.text_content()
-                if looks_like_name(text):
-                    self.add_byline(text)
+                shown = element.text_content()
+                if looks_like_name(shown):
+                    self.add_byline(shown)
             if any(_is_metadata(node) for node in (element, *element.iterancestors())):
                 if any(_is_author_named(node) for node in (element, *element.iterancestors())):
                     # Any journalist named here, not only the page's own byline: sidebars list
                     # other columnists in elements named like the byline's.
-                    for text in (element.text, element.tail):
-                        if text and looks_like_name(text):
-                            self.add_byline(text)
+                    for piece in (element.text, element.tail):
+                        if piece and looks_like_name(piece):
+                            self.add_byline(piece)
                 continue
             # Inside article content every word goes; elsewhere, such as menus, short labels stay.
             inner = 1 if ({element.tag} | ancestors) & CONTENT_TAGS else MIN_WORDS
