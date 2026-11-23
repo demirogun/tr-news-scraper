@@ -141,6 +141,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 | Takvim | `takvim` | monthly sitemap | 2009-02 | no | yes |
 | Timeturk | `timeturk` | chunked sitemap | 2014-01 | no | yes |
 | Türkgün | `turkgun` | monthly sitemap | 2019-03 | image titles | yes |
+| Yeni Asır | `yeni-asir` | monthly sitemap | 2009-07 | no | yes |
 | Sputnik Türkiye | `sputnik-tr` | monthly sitemap | 2014-11 | no | no |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
@@ -167,6 +168,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Takvim:** Every month since February 2009. No headlines.
 - **Timeturk:** Numbered files of 1,000 articles each, the newest first; its oldest articles are dated January 2014. No headlines.
 - **Türkgün:** Every month since March 2019. Headlines come from the image titles in its sitemaps.
+- **Yeni Asır:** A regional paper of İzmir. Every month since July 2009. No headlines.
 - **Sputnik Türkiye:** Opt-in: funded by the Russian state, so it's read only when you name it. Every month since November 2014. No headlines.
 
 Every outlet's archive is allowed by its robots.txt. Where an archive has no headlines, articles

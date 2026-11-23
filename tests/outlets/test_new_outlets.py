@@ -144,6 +144,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.turkgun.com/yasam/dilenen-kadinin-kucagindaki-kundaktan-cikan-soke-etti/200074",
         "https://www.turkgun.com/dunya/bir-doneme-damgasini-vuran-oyuncu-hayatini-kaybetti/197769",
     ),
+    (
+        "yeni-asir",
+        Month(2023, 2),
+        20,
+        "https://www.yeniasir.com.tr/gundem/2023/02/27/kamyonet-bariyere-carpti-iki-kisi-hayatini-kaybetti",
+        "https://www.yeniasir.com.tr/ege/denizli/2023/02/01/denizlide-yksye-girecek-genclere-mujde",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

@@ -303,6 +303,16 @@ TURKGUN = MonthlySitemap(
 )
 
 
+YENI_ASIR = MonthlySitemap(
+    id="yeni-asir",
+    name="Yeni Asır",
+    index="https://www.yeniasir.com.tr/sitemap/post.xml",
+    month_file=_TURKUVAZ_MONTHS,
+    earliest=Month(2009, 7),
+    notes="A regional paper of İzmir. Every month since July 2009. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -351,6 +361,7 @@ BUILTIN: tuple[Outlet, ...] = (
     TAKVIM,
     TIMETURK,
     TURKGUN,
+    YENI_ASIR,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = (SPUTNIK_TR,)

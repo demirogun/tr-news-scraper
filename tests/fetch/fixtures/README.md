@@ -59,6 +59,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 | `timeturk/page.html` | https://www.timeturk.com/gundem/ingiliz-uzmandan-dikkat-ceken-analiz-deprem-mi-yoksa-bir-tur-teror-eylemi-mi/haber-1761529 | fictional |
 | `trt-haber/page.html` | https://www.trthaber.com/haber/bilim-teknoloji/deprem-felaketinden-sonra-dijital-ikiz-teknolojisi-hizla-yayginlasiyor-750285.html | fictional |
 | `turkgun/page.html` | https://www.turkgun.com/gundem/sosyal-medyadan-depremle-ilgili-provokatif-paylasim-yapan-ercan-hakkinda-flas-karar/200081 | desk |
+| `yeni-asir/page.html` | https://www.yeniasir.com.tr/gundem/2023/02/28/deprem-firtinasi-suruyor-kayseri-ikinci-kez-sallandi | none |
 
 To rebuild one, save the page as UTF-8 text and run the script. Bylines named in JSON-LD or a
 `meta[name=author]` tag get fictional names on their own; give `--author` for a byline that appears
