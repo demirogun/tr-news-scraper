@@ -102,6 +102,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.olay.com.tr/bursada-2-katli-ev-alev-alev-yandi-1094653",
         "https://www.olay.com.tr/bursadaki-trafik-kazasinda-2-kisi-yaralandi-2-1108070",
     ),
+    (
+        "ozgur-kocaeli",
+        Month(2023, 2),
+        20,
+        "https://www.ozgurkocaeli.com.tr/haber/14109231/hodri-meydan-firsatcilara-firsat-vermeyecegiz",
+        "https://www.ozgurkocaeli.com.tr/makale/13935027/adem-turgut/buyuksehir-geregini-yapti-minibuscu-de-geregini-yapsin",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

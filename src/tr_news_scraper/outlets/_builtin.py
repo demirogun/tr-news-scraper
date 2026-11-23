@@ -227,6 +227,19 @@ OLAY = ChunkedSitemap(
 )
 
 
+OZGUR_KOCAELI = MonthlySitemap(
+    id="ozgur-kocaeli",
+    name="Özgür Kocaeli",
+    index="https://www.ozgurkocaeli.com.tr/sitemap.xml",
+    month_file=r"/sites/\d+/sitemaps/sitemap-(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
+    earliest=Month(2006, 1),
+    notes=(
+        "A regional paper of Kocaeli, the 1999 earthquake's area. Every month since September "
+        "2010; only scattered months before. No headlines."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -270,6 +283,7 @@ BUILTIN: tuple[Outlet, ...] = (
     NTV,
     ODATV,
     OLAY,
+    OZGUR_KOCAELI,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()
