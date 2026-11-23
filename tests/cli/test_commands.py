@@ -53,7 +53,8 @@ def test_coverage_prints_a_table_and_the_notes(capsys: pytest.CaptureFixture[str
     assert main(["coverage"]) == 0
     out, err = capsys.readouterr()
     lines = out.splitlines()
-    assert lines[0].split() == ["outlet", "name", "method", "earliest", "headlines"]
+    assert lines[0].split() == ["outlet", "name", "method", "earliest", "headlines", "default"]
+    assert lines[1].split()[-1] == "yes"
     assert lines[1].split()[:2] == ["cumhuriyet", "Cumhuriyet"]
     assert sum(line.startswith("  milliyet: ") for line in lines) == 1
     assert "Notes:" in lines

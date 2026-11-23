@@ -385,12 +385,12 @@ def test_an_article_listed_in_two_files_is_kept_once(http: Http, requests_mock: 
     index = "".join(f"<sitemap><loc>{loc}</loc></sitemap>" for loc in locs)
     requests_mock.get(INDEX, text=f'<?xml version="1.0"?><sitemapindex {NS}>{index}</sitemapindex>')
     for loc, articles in zip(locs, files, strict=True):
-        urls = "".join(
+        listing = "".join(
             f"<url><loc>{article_url(k)}</loc>"
             f"<lastmod>{(first + timedelta(days=k)).isoformat()}</lastmod></url>"
             for k in articles
         )
-        requests_mock.get(loc, text=f'<?xml version="1.0"?><urlset {NS}>{urls}</urlset>')
+        requests_mock.get(loc, text=f'<?xml version="1.0"?><urlset {NS}>{listing}</urlset>')
     found = scan(mini, http, date(2023, 1, 5), date(2023, 1, 25), today=TODAY)
     urls = [c.url for c in found]
     assert urls == [article_url(k) for k in range(4, 24)]

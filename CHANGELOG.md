@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Opt-in outlets: built in, but read only when you name them. `builtin(include_opt_in=True)` lists
+  every built-in outlet, the opt-in ones last; `get()` finds any of them by id; and `coverage()`
+  lists them all, with a new `default` column that says which ones `search()` reads without being
+  told to. On the command line, `--outlets` and `trnews fetch FILE` take opt-in ids, and
+  `trnews coverage` shows the `default` column. `fetch()` of a table with an opt-in outlet's rows
+  says how to include it.
 - Sitemaps with Google News tags: an entry's `news:publication_date` gives the article its `day`,
   so `search()` keeps it only when that day is in the range. With `MonthlySitemap(titles="news")`,
   the entry's `news:title` is its headline.

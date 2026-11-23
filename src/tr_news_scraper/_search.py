@@ -92,7 +92,7 @@ def parse_range(start: date | str, end: date | str) -> tuple[date, date]:
 def resolve_outlets(
     outlets: str | Outlet | Iterable[str | Outlet] | None,
 ) -> tuple[Outlet, ...]:
-    """The outlets to search, in the order given; every built-in outlet by default (S1)."""
+    """The outlets to search, in the order given; the default outlets by default (S1)."""
     if outlets is None:
         return builtin()
     items: Iterable[object] = [outlets] if isinstance(outlets, (str, *_OUTLET_KINDS)) else outlets
@@ -240,7 +240,8 @@ def search(
             ``"word"`` an exact match.
         start: The first day, as a ``date`` or ``"YYYY-MM-DD"``.
         end: The day after the last day.
-        outlets: Built-in outlet ids or outlet definitions; every built-in outlet by default.
+        outlets: Built-in outlet ids or outlet definitions; the default outlets,
+            ``builtin()``, by default. An opt-in outlet is read only when named here.
         contact: Added to the User-Agent, such as ``"mailto:you@example.org"``.
         obey_robots: ``False`` skips the robots.txt check, with a warning for every site. Only
             use it when you have the site's permission.

@@ -1,7 +1,7 @@
-"""The outlets tr-news-scraper reads by default, each checked live on 2026-11-07.
+"""The outlets tr-news-scraper knows, each checked live before it was added.
 
-Each outlet's archive is allowed by its robots.txt. A weekly live check (tests/live) confirms
-that every one still works.
+Each outlet's archive is allowed by its robots.txt. Most are read by default; opt-in outlets
+are read only when named. A weekly live check (tests/live) confirms that every one still works.
 """
 
 from __future__ import annotations
@@ -88,17 +88,27 @@ MILLIYET = SiteSearch(
 )
 
 BUILTIN: tuple[Outlet, ...] = (CUMHURIYET, EURONEWS_TR, TRT_HABER, STAR, AKSAM, SOZCU, MILLIYET)
+"""The default outlets: search reads them unless told otherwise."""
+OPT_IN: tuple[Outlet, ...] = ()
+"""Built-in outlets read only when named, so nobody gets them by surprise."""
 
 
-def builtin() -> tuple[Outlet, ...]:
-    """The outlets search uses by default, in a fixed order."""
-    return BUILTIN
+def builtin(*, include_opt_in: bool = False) -> tuple[Outlet, ...]:
+    """The outlets search uses by default, in a fixed order; with ``include_opt_in=True``,
+    every built-in outlet: the defaults, then the opt-in ones.
+
+    >>> builtin()                       # the defaults
+    >>> builtin(include_opt_in=True)    # every built-in outlet
+    """
+    return (*BUILTIN, *OPT_IN) if include_opt_in else BUILTIN
 
 
 def get(outlet_id: str) -> Outlet:
-    """The built-in outlet with this id. Raises ``ValueError`` naming the valid ids."""
-    for outlet in BUILTIN:
+    """The built-in outlet with this id, opt-in ones included. Raises ``ValueError`` naming the
+    valid ids."""
+    every = builtin(include_opt_in=True)
+    for outlet in every:
         if outlet.id == outlet_id:
             return outlet
-    choices = ", ".join(outlet.id for outlet in BUILTIN)
+    choices = ", ".join(outlet.id for outlet in every)
     raise ValueError(f"there's no built-in outlet {outlet_id!r}; choose from {choices}")

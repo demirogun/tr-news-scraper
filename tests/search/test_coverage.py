@@ -27,8 +27,12 @@ def test_coverage_lists_every_built_in_outlet_without_a_request(requests_mock: M
     table = coverage()
     assert requests_mock.call_count == 0
     assert tuple(table.columns) == COVERAGE_COLUMNS
-    assert {str(dtype) for dtype in table.dtypes} == {"string"}
-    assert list(table["outlet"]) == [outlet.id for outlet in builtin()]
+    assert {str(dtype) for dtype in table.drop(columns="default").dtypes} == {"string"}
+    assert str(table["default"].dtype) == "bool"
+    assert list(table["outlet"]) == [outlet.id for outlet in builtin(include_opt_in=True)]
+    assert table["default"].tolist() == [
+        outlet in builtin() for outlet in builtin(include_opt_in=True)
+    ]
     rows = table.set_index("outlet")
     assert tuple(rows.loc["star", ["method", "earliest", "headlines", "hosts"]]) == (
         "monthly sitemap",

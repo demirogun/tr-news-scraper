@@ -10,14 +10,30 @@ from typing import TYPE_CHECKING
 from tr_news_scraper._http import Http, HttpConfig
 from tr_news_scraper._search import in_threads, resolve_outlets
 from tr_news_scraper._table import string_series, time_series
-from tr_news_scraper.outlets import ChunkedSitemap, Month, MonthlySitemap, Outlet, SiteSearch
+from tr_news_scraper.outlets import (
+    ChunkedSitemap,
+    Month,
+    MonthlySitemap,
+    Outlet,
+    SiteSearch,
+    builtin,
+)
 from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._health import check as health_check
 
 if TYPE_CHECKING:
     import pandas as pd
 
-COVERAGE_COLUMNS = ("outlet", "name", "method", "earliest", "headlines", "hosts", "notes")
+COVERAGE_COLUMNS = (
+    "outlet",
+    "name",
+    "method",
+    "earliest",
+    "headlines",
+    "hosts",
+    "notes",
+    "default",
+)
 HEALTH_COLUMNS = ("ok", "problems", "oldest", "newest", "sample", "checked_at")
 
 
@@ -29,20 +45,21 @@ def coverage(
     obey_robots: bool = True,
     cache_dir: str | Path | None = None,
 ) -> pd.DataFrame:
-    """What each outlet's archive covers: one row per outlet, in the order given.
+    """What each outlet's archive covers: one row per outlet, in the order given; with no
+    ``outlets``, every built-in outlet, the opt-in ones last.
 
     >>> coverage()              # how each built-in outlet is read, and from when; no request
-    >>> coverage(check=True)    # also checks every archive now: 2 requests per outlet
+    >>> coverage(check=True)    # also checks every archive now: 2 to 4 requests per outlet
 
     The columns are ``outlet``, ``name``, ``method``, ``earliest`` (the first month of a
     sitemap archive), ``headlines`` (``no``, ``image titles``, ``news titles`` or
-    ``search results``), ``hosts``
-    and ``notes``. With ``check=True`` it reads each archive's index and last month, or the
-    first two search pages, and adds ``ok``, ``problems``, ``oldest`` and ``newest`` (the
-    months the index lists), ``sample`` and ``checked_at``. ``contact``, ``obey_robots`` and
+    ``search results``), ``hosts``, ``notes`` and ``default`` (whether search reads the outlet
+    without being told to). With ``check=True`` it reads each archive's index and newest files,
+    or the first two search pages, and adds ``ok``, ``problems``, ``oldest`` and ``newest`` (the
+    months the archive spans), ``sample`` and ``checked_at``. ``contact``, ``obey_robots`` and
     ``cache_dir`` work as in ``search()``.
     """
-    chosen = resolve_outlets(outlets)
+    chosen = builtin(include_opt_in=True) if outlets is None else resolve_outlets(outlets)
     config = HttpConfig(
         contact=contact,
         obey_robots=obey_robots,
@@ -66,6 +83,7 @@ def _coverage(outlets: Sequence[Outlet], http: Http | None, *, now: datetime) ->
         "headlines": string_series([_headlines(outlet) for outlet in outlets]),
         "hosts": string_series([", ".join(sorted(outlet.hosts)) for outlet in outlets]),
         "notes": string_series([outlet.notes for outlet in outlets]),
+        "default": pd.Series([outlet in builtin() for outlet in outlets], dtype="bool"),
     }
     if http is not None:
         client, today = http, now.date()
