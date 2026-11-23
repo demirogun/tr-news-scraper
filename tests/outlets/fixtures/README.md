@@ -8,7 +8,9 @@ robots.txt obeyed, honest User-Agent, one request per second per site.
 - Each month file keeps 20 entries: the first 8, the last 8, and up to 4 entries in between whose
   URL contains "deprem". Video elements were removed.
 - Milliyet's search pages keep their first 5 results, and each result's summary is replaced with
-  "…". Page 401 is the empty page that follows the last results.
+  "…". Page 401 is the empty page that follows the last results. Milliyet is no longer built in
+  (its robots.txt has disallowed `/api/` since 2026-11-23); its pages, recorded while robots.txt
+  allowed them, test the site-search kind with tests/site_search.py's definition.
 - Nothing here contains article text. The files hold URLs, dates, headlines, and image titles
   (headlines for Star, photo titles for Euronews Türkçe).
 

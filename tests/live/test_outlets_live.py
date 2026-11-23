@@ -98,6 +98,4 @@ def test_reference_months_still_hold_their_articles(
 
 
 def test_every_built_in_outlet_has_a_reference_month() -> None:
-    assert {case[0] for case in REFERENCE} == {
-        outlet.id for outlet in builtin(include_opt_in=True) if outlet.id != "milliyet"
-    }
+    assert {case[0] for case in REFERENCE} == {outlet.id for outlet in builtin(include_opt_in=True)}

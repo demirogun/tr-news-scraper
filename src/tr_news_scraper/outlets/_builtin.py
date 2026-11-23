@@ -11,7 +11,6 @@ from tr_news_scraper.outlets._model import (
     Month,
     MonthlySitemap,
     Outlet,
-    SiteSearch,
 )
 
 CUMHURIYET = MonthlySitemap(
@@ -313,29 +312,6 @@ YENI_ASIR = MonthlySitemap(
 )
 
 
-def _has_class(name: str) -> str:
-    """An XPath test for an element whose class list includes ``name``."""
-    return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
-
-
-# /api/search/ is allowed by Milliyet's robots.txt; its /arama/ pages are not, and aren't used.
-MILLIYET = SiteSearch(
-    id="milliyet",
-    name="Milliyet",
-    url="https://www.milliyet.com.tr/api/search/searchcontentloadmore?query={query}&page={page}",
-    item=f"//div[{_has_class('news__item')}]",
-    link=f".//a[{_has_class('news__titles-link')}]/@href",
-    title=f".//strong[{_has_class('news__title')}]",
-    date=f".//span[{_has_class('news__date')}]",
-    date_format="%d.%m.%Y",
-    # Links to /uzmanpara/ redirect to this section host, whose robots.txt allows articles.
-    extra_hosts=frozenset({"uzmanpara.milliyet.com.tr"}),
-    notes=(
-        "Milliyet's search returns only its newest 10,000 results for each keyword; for a "
-        "frequent word like 'deprem' that reaches back about two and a half years."
-    ),
-)
-
 BUILTIN: tuple[Outlet, ...] = (
     CUMHURIYET,
     EURONEWS_TR,
@@ -343,7 +319,6 @@ BUILTIN: tuple[Outlet, ...] = (
     STAR,
     AKSAM,
     SOZCU,
-    MILLIYET,
     A_HABER,
     AYDINLIK,
     BLOOMBERG_HT,

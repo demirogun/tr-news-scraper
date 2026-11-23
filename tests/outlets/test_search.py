@@ -5,12 +5,14 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from requests_mock import Mocker
 
+from tests.site_search import MILLIYET
 from tr_news_scraper._http import Http
 from tr_news_scraper.errors import OutletFailed
 from tr_news_scraper.outlets import Month, SiteSearch
@@ -41,6 +43,8 @@ OUTLET = SiteSearch(
 NEWEST = date(2026, 11, 7)
 PAGES = 400  # like Milliyet: 400 pages of 25, then empty pages
 PER_PAGE = 25
+MILLIYET_PAGES = Path(__file__).parent / "fixtures" / "milliyet"
+RECORDED_ON = date(2026, 11, 7)
 
 
 def item(link: str, day: date | str, title: str = "Başlık") -> str:
@@ -353,3 +357,54 @@ def test_no_searchable_keyword_means_no_requests(
     serve(requests_mock)
     found = scan(OUTLET, http, day_of(3), NEWEST, keywords, today=NEWEST)
     assert (collect(iter(found)), search_requests(requests_mock)) == ([], [])
+
+
+def milliyet_page(number: int) -> str:
+    """A page of Milliyet's search for "deprem", recorded on 2026-11-07 (tests/site_search.py)."""
+    return (MILLIYET_PAGES / f"deprem-page-{number}.html").read_bytes().decode("utf-8")
+
+
+def test_milliyets_recorded_first_page_gives_headlines_and_days() -> None:
+    outlet = MILLIYET
+    url = page_url(outlet, "deprem", 1)
+    page = parse_page(milliyet_page(1), outlet, 1, url)
+    assert len(page.results) == 5
+    first = page.results[0]
+    assert first.url == (
+        "https://www.milliyet.com.tr/galeri/son-depremler-7-kasim-2026-yakinimda-deprem-mi-oldu-"
+        "deprem-nerede-kac-siddetinde-oldu-son-dakika-deprem-haberleri-7696134"
+    )
+    assert first.title is not None
+    assert first.title.startswith("SON DEPREMLER 7 KASIM 2026: Yakınımda deprem mi oldu?")
+    assert (first.day, page.oldest) == (date(2026, 11, 7), date(2026, 11, 6))
+    assert (page.dropped, page.unreadable) == (0, 0)
+
+
+def test_milliyets_page_400_is_from_may_2024_and_page_401_is_empty() -> None:
+    outlet = MILLIYET
+    deep = parse_page(milliyet_page(400), outlet, 400, page_url(outlet, "deprem", 400))
+    assert (deep.newest, deep.oldest) == (date(2024, 5, 26), date(2024, 5, 25))
+    assert deep.results[0].title == "AFAD duyurdu! Marmara Denizi'nde 3.8 büyüklüğünde deprem"
+    beyond = parse_page(milliyet_page(401), outlet, 401, page_url(outlet, "deprem", 401))
+    assert beyond.empty
+
+
+def test_a_milliyet_scan_reports_where_its_results_end(http: Http, requests_mock: Mocker) -> None:
+    outlet = MILLIYET
+    for host in outlet.hosts:
+        requests_mock.get(f"https://{host}/robots.txt", status_code=404)
+    requests_mock.get(page_url(outlet, "deprem", 1), text=milliyet_page(1))
+    requests_mock.get(page_url(outlet, "deprem", 2), text=milliyet_page(401))
+    found = scan(outlet, http, date(2026, 11, 6), date(2026, 11, 8), ["deprem"], today=RECORDED_ON)
+    candidates = list(found)
+    assert [c.day for c in candidates] == [date(2026, 11, 7)] * 4 + [date(2026, 11, 6)]
+    assert all(c.month == Month(2026, 11) and c.title for c in candidates)
+    [gap] = found.gaps
+    assert (gap.reason, gap.keyword, gap.reached) == ("window", "deprem", date(2026, 11, 6))
+    assert "nothing older than 2026-11-06" in gap.detail
+
+
+def test_milliyet_allows_its_uzmanpara_section_host() -> None:
+    # Milliyet's /uzmanpara/ links redirect there; its robots.txt allowed article paths
+    # (checked 2026-11-08).
+    assert MILLIYET.hosts == {"www.milliyet.com.tr", "uzmanpara.milliyet.com.tr"}

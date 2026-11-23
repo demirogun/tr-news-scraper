@@ -12,8 +12,9 @@ import pytest
 
 from tr_news_scraper._http import Http
 
-# URLs that tr-news-scraper reads, one per 1.0 outlet (checked 2026-11-07) and an archive file and
-# an article per host 1.1 adds (checked 2026-11-23); each site's robots.txt allows them.
+# URLs that tr-news-scraper reads, one per 1.0 outlet still built in (checked 2026-11-07) and an
+# archive file and an article per host 1.1 adds (checked 2026-11-23); each site's robots.txt
+# allows them.
 ALLOWED = {
     "Cumhuriyet": "https://www.cumhuriyet.com.tr/sitemaps/posts-2023-2.xml",
     "Euronews Türkçe": "https://tr.euronews.com/sitemap/articles-2023-02.xml",
@@ -21,11 +22,6 @@ ALLOWED = {
     "Star": "https://www.star.com.tr/sitemaps/posts-2023-02.xml",
     "Akşam": "https://www.aksam.com.tr/sitemaps/posts-2023-02.xml",
     "Sözcü": "https://www.sozcu.com.tr/feeds/sitemapposts?year=2024&month=6",
-    "Milliyet": "https://www.milliyet.com.tr/api/search/searchcontentloadmore?query=deprem&page=1",
-    "Milliyet Uzmanpara": (
-        "https://uzmanpara.milliyet.com.tr/uzmanpara/"
-        "deprem-tarlasini-ikiye-bolmustu-ucurum-kenarinda-hasat-yapiyorlar-7692430"
-    ),
     "A Haber archive": "https://www.ahaber.com.tr/sitemaparchives/post/2023-2.xml",
     "A Haber article": (
         "https://www.ahaber.com.tr/yasam/2025/10/02/dogal-afetlerden-koruyan-dua-zilzal-suresinin-turkce-arapca-okunusu-deprem-aninda-okunur-mu"
@@ -113,8 +109,12 @@ ALLOWED = {
         "https://finans.mynet.com/haber/detay/ekonomi/a101-de-9-taksitle-109-bin-tl-ye-tekne-satilacak-iste-2-subat-aldin-aldin-katalogu/460067/"
     ),
 }
-# Endpoints that 0.1.0 used, or that we once planned to use, and that robots.txt now forbids.
+# Endpoints that 0.1.0 or 1.0 used, or that we once planned to use, and that robots.txt now
+# forbids.
 DISALLOWED = {
+    "Milliyet search (1.0's; disallowed since 2026-11-23)": (
+        "https://www.milliyet.com.tr/api/search/searchcontentloadmore?query=deprem&page=1"
+    ),
     "Sabah search": "https://www.sabah.com.tr/get/arama?query=deprem",
     "Hürriyet search": "https://www.hurriyet.com.tr/api/search/searchcontentloadmore?query=deprem",
     "CNN Türk tag list (disallowed since 2026-11-07)": (

@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 import tr_news_scraper._extract as extract_module
+from tests.site_search import MILLIYET
 from tr_news_scraper._extract import (
     MAX_PAGE_CHARACTERS,
     Extracted,
@@ -237,6 +238,12 @@ def page(outlet: str) -> str:
     return (FIXTURES / outlet / "page.html").read_text(encoding="utf-8")
 
 
+def outlet_name(outlet: str) -> str:
+    """The outlet's display name. Milliyet's page stays a test case though it's no longer built
+    in: its article pages are still allowed, and its lead sits outside the article body."""
+    return MILLIYET.name if outlet == MILLIYET.id else get(outlet).name
+
+
 def synthetic(
     *,
     article: dict[str, Any] | None = None,
@@ -265,7 +272,7 @@ def news(**fields: Any) -> dict[str, Any]:
 def test_each_outlets_page_yields_headline_byline_time_and_text(
     outlet: str, headline: str, byline: str | None, published: datetime
 ) -> None:
-    found = extract(page(outlet), f"https://www.example.com.tr/{outlet}", get(outlet).name)
+    found = extract(page(outlet), f"https://www.example.com.tr/{outlet}", outlet_name(outlet))
     assert (found.title, found.author, found.error) == (headline, byline, None)
     assert found.published == published
     assert found.published is not None
@@ -455,7 +462,7 @@ def test_trafilatura_is_imported_only_inside_the_extraction() -> None:
 # Like the other speed budgets, this runs with coverage paused.
 @pytest.mark.no_cover
 def test_extraction_takes_under_100_ms_per_page_at_the_median() -> None:
-    pages = [(page(case[0]), get(case[0]).name) for case in EXPECTED]
+    pages = [(page(case[0]), outlet_name(case[0])) for case in EXPECTED]
     warm_up, name = pages[0]
     extract(warm_up, "https://x.com.tr/warm-up", name)
     times = []

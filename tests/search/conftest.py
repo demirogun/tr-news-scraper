@@ -13,6 +13,7 @@ from requests_mock import Mocker
 
 import tr_news_scraper.outlets._builtin as builtin_module
 from tests.http.conftest import FakeClock
+from tests.site_search import MILLIYET
 from tr_news_scraper._http import Http, HttpConfig
 from tr_news_scraper.outlets import MonthlySitemap, builtin, get
 
@@ -37,15 +38,16 @@ SEVEN = ("cumhuriyet", "euronews-tr", "trt-haber", "star", "aksam", "sozcu", "mi
 @pytest.fixture(autouse=True)
 def _the_seven_outlets_of_1_0(monkeypatch: pytest.MonkeyPatch) -> None:
     """These tests run search over 1.0's seven outlets and their recorded archives, so they
-    don't change as outlets are added; tests/outlets/test_new_outlets.py reads the others."""
-    seven = tuple(outlet for outlet in builtin_module.BUILTIN if outlet.id in SEVEN)
-    monkeypatch.setattr(builtin_module, "BUILTIN", seven)
+    don't change as outlets come and go: Milliyet, no longer built in, is tests/site_search.py's.
+    tests/outlets/test_new_outlets.py reads the others."""
+    six = tuple(outlet for outlet in builtin_module.BUILTIN if outlet.id in SEVEN)
+    monkeypatch.setattr(builtin_module, "BUILTIN", (*six, MILLIYET))
     monkeypatch.setattr(builtin_module, "OPT_IN", ())
 
 
 @pytest.fixture(autouse=True)
-def _hosts_have_no_robots_txt(requests_mock: Mocker) -> None:
-    """The built-in and test hosts have no robots.txt (404), which RFC 9309 reads as "allow all"."""
+def _hosts_have_no_robots_txt(requests_mock: Mocker, _the_seven_outlets_of_1_0: None) -> None:
+    """The pinned and test hosts have no robots.txt (404), which RFC 9309 reads as "allow all"."""
     hosts = {host for outlet in builtin() for host in outlet.hosts} | {TEST_HOST}
     for host in hosts:
         requests_mock.get(f"https://{host}/robots.txt", status_code=404)

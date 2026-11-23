@@ -10,6 +10,7 @@ from requests_mock import Mocker
 
 import tr_news_scraper._fetch as fetch_module
 from tests.fetch.conftest import HTML, serve_page
+from tests.site_search import MILLIYET
 from tr_news_scraper._extract import extractor
 from tr_news_scraper._fetch import HTML_ACCEPT, FetchRun, fetch_outlet
 from tr_news_scraper._http import CachePolicy, Http
@@ -193,9 +194,9 @@ def test_a_milliyet_article_moved_to_its_section_host_is_read(
 ) -> None:
     moved = "https://www.milliyet.com.tr/uzmanpara/deprem-haberi-7692430"
     section = "https://uzmanpara.milliyet.com.tr/uzmanpara/deprem-haberi-7692430"
+    for host in MILLIYET.hosts:
+        requests_mock.get(f"https://{host}/robots.txt", status_code=404)
     requests_mock.get(moved, status_code=301, headers={"Location": section})
     serve_page(requests_mock, section, "milliyet")
-    found = fetch_outlet(
-        get("milliyet"), [(0, moved)], http, refresh=False, offline=False, progress=None
-    )
+    found = fetch_outlet(MILLIYET, [(0, moved)], http, refresh=False, offline=False, progress=None)
     assert found.results[0].extracted.error is None

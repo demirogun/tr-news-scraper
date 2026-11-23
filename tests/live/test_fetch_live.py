@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 import pandas as pd
 import pytest
@@ -21,7 +21,7 @@ from tr_news_scraper._extract import Extracted, extract
 from tr_news_scraper._http import CachePolicy, Http
 from tr_news_scraper._structured import PageFacts, alike, read_page
 from tr_news_scraper.errors import HttpError, OutletFailed
-from tr_news_scraper.outlets import Month, SiteSearch, builtin, get
+from tr_news_scraper.outlets import Month, builtin, get
 from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._model import Candidate
 from tr_news_scraper.outlets._scan import HTML_ACCEPT, describe, scan
@@ -94,28 +94,21 @@ def spread(candidates: list[Candidate]) -> list[Candidate]:
 
 
 def sampled(http: Http) -> list[tuple[str, str | None, str | None]]:
-    """Three articles in last month's archive of each built-in outlet, spread over the month;
-    for Milliyet, its first three search results for "deprem" this week. Each row is an outlet,
-    a URL and, for an outlet whose archive couldn't be read, no URL but the reason."""
+    """Three articles in last month's archive of each built-in outlet, spread over the month.
+    Each row is an outlet, a URL and, for an outlet whose archive couldn't be read, no URL but
+    the reason."""
     last_month = Month.of(today()).previous()
     rows: list[tuple[str, str | None, str | None]] = []
     for outlet in builtin(include_opt_in=True):
         try:
-            if isinstance(outlet, SiteSearch):
-                week = today() - timedelta(days=7)
-                found = scan(
-                    outlet, http, week, today() + timedelta(days=1), ["deprem"], today=today()
+            found = scan(outlet, http, last_month.start, last_month.next().start, today=today())
+            candidates = spread(
+                sorted(
+                    found,
+                    key=lambda c: c.lastmod or datetime.min.replace(tzinfo=ISTANBUL),
+                    reverse=True,
                 )
-                candidates = list(found)
-            else:
-                found = scan(outlet, http, last_month.start, last_month.next().start, today=today())
-                candidates = spread(
-                    sorted(
-                        found,
-                        key=lambda c: c.lastmod or datetime.min.replace(tzinfo=ISTANBUL),
-                        reverse=True,
-                    )
-                )
+            )
         except OutletFailed as failure:
             rows.append((outlet.id, None, failure.reason))
             continue

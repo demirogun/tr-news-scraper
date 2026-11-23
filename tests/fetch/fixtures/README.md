@@ -3,7 +3,8 @@
 One page per built-in outlet, made with `scripts/make_page_fixtures.py` from pages read on
 2026-11-08 with tr-news-scraper's own client: robots.txt obeyed, honest User-Agent, one request per
 second per site. The seven were rebuilt on 2026-11-23 from the same saved pages, with the rules
-below; nothing was downloaded again.
+below; nothing was downloaded again. Milliyet's page stays though Milliyet is no longer built in:
+its article pages are still allowed, and its lead sits outside the article body.
 
 A skeleton keeps the page's structure, headline, dates and metadata, so fetch's tests exercise each
 outlet's real markup. It doesn't keep the article:

@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 import tr_news_scraper.outlets._builtin as builtin_module
+from tests.site_search import MILLIYET
 from tr_news_scraper import _cli
 from tr_news_scraper._fetched import FetchResult
 from tr_news_scraper._table import (
@@ -138,10 +139,10 @@ SEVEN = ("cumhuriyet", "euronews-tr", "trt-haber", "star", "aksam", "sozcu", "mi
 @pytest.fixture(autouse=True)
 def _the_seven_outlets_of_1_0(monkeypatch: pytest.MonkeyPatch) -> None:
     """These tests run the command line over 1.0's seven outlets and their recorded archives,
-    so they don't change as outlets are added; tests/outlets/test_new_outlets.py reads the
-    others."""
-    seven = tuple(outlet for outlet in builtin_module.BUILTIN if outlet.id in SEVEN)
-    monkeypatch.setattr(builtin_module, "BUILTIN", seven)
+    so they don't change as outlets come and go: Milliyet, no longer built in, is
+    tests/site_search.py's. tests/outlets/test_new_outlets.py reads the others."""
+    six = tuple(outlet for outlet in builtin_module.BUILTIN if outlet.id in SEVEN)
+    monkeypatch.setattr(builtin_module, "BUILTIN", (*six, MILLIYET))
     monkeypatch.setattr(builtin_module, "OPT_IN", ())
 
 

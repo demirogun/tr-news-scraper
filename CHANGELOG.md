@@ -7,11 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-`search()` now reads 25 outlets by default instead of 7, so the same search finds more articles
+`search()` now reads 24 outlets by default instead of 7, so the same search finds more articles
 and makes more requests. Every outlet is still read from its own archive, under 1.0's robots.txt
 and politeness rules; outlets are searched in parallel, each at one request per second. To search
-only 1.0's seven outlets, name them with `outlets=` or `--outlets`. `fetch()` also reads pages
-more faithfully, from their structured data first.
+only the outlets 1.0 read, name them with `outlets=` or `--outlets`; Milliyet is no longer one of
+them. `fetch()` also reads pages more faithfully, from their structured data first.
 
 ### Added
 - New built-in outlets, each checked live against its robots.txt and its archive before it
@@ -83,6 +83,14 @@ more faithfully, from their structured data first.
   1.0 read only the first. A file that can't be read is a gap of its own in the report, and the
   month's other files still count. The health check reads up to three of last month's files to
   find one with entries.
+
+### Removed
+- Milliyet. On 2026-11-23 its robots.txt began to disallow `/api/` for every crawler, and
+  tr-news-scraper read Milliyet only through its search, which is under `/api/`. 1.0.0 obeys:
+  its searches now report that Milliyet couldn't be read. In 1.1 the outlet is gone, so
+  `outlets=["milliyet"]` raises, and `fetch()` of a 1.0 table with Milliyet rows asks for a
+  definition; leave those rows out, as in `fetch(table[table["outlet"] != "milliyet"])`.
+  `SiteSearch` stays, for search pages that robots.txt allows.
 
 ### Fixed
 - 1.0's page fixture for Milliyet, in its source distribution and repository, kept the names of

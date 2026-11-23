@@ -2,7 +2,7 @@
 
 This is SPEC.md's success criterion 2, as 1.1 raised it. It runs after the outlet live tests, in
 the same session and the same cache, so February 2023's sitemap files are usually read from the
-cache; the new requests are the outlets' indexes and Milliyet's search.
+cache; the new requests are the outlets' indexes.
 """
 
 from __future__ import annotations
@@ -12,9 +12,8 @@ import pytest
 from tr_news_scraper import search
 from tr_news_scraper.outlets import builtin
 
-# The default outlets whose archives cover February 2023: all but Sözcü (from December 2023) and
-# Milliyet, whose search reaches back about two and a half years.
-COVERING = {outlet.id for outlet in builtin()} - {"sozcu", "milliyet"}
+# The default outlets whose archives cover February 2023: all but Sözcü (from December 2023).
+COVERING = {outlet.id for outlet in builtin()} - {"sozcu"}
 MIN_OUTLETS = 18
 
 

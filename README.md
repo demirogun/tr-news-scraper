@@ -3,7 +3,7 @@
 # tr-news-scraper
 
 Search Turkish news archives by keyword and date range, politely. tr-news-scraper finds the
-articles 25 Turkish-language outlets published about your keywords, reads their text, author
+articles 24 Turkish-language outlets published about your keywords, reads their text, author
 and publication time, and tells you what each outlet could and couldn't provide. It obeys every
 site's robots.txt and sends each site one request per second.
 
@@ -80,7 +80,7 @@ trnews coverage --check
 |---|---|
 | `outlet` | the outlet's id, such as `trt-haber` |
 | `month` | the archive month that lists the article, as `YYYY-MM` |
-| `day` | the publication day, when the archive gives it (Milliyet); empty until `fetch()` otherwise |
+| `day` | the publication day, when the archive gives it (Odatv); empty until `fetch()` otherwise |
 | `title` | the headline, when the archive gives one; `fetch()` fills the rest from each page |
 | `url` | the article's address, unique in the table |
 | `matched` | the keywords that matched, such as `deprem, tsunami` |
@@ -123,7 +123,6 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 | Star | `star` | monthly sitemap | 2012-09 | image titles | yes |
 | Akşam | `aksam` | monthly sitemap | 2010-12 | no | yes |
 | Sözcü | `sozcu` | monthly sitemap | 2023-12 | no | yes |
-| Milliyet | `milliyet` | site search | — | search results | yes |
 | A Haber | `a-haber` | monthly sitemap | 2011-03 | no | yes |
 | Aydınlık | `aydinlik` | monthly sitemap | 2010-02 | no | yes |
 | Bloomberg HT | `bloomberg-ht` | chunked sitemap | 2010-09 | no | yes |
@@ -150,7 +149,6 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Star:** Headlines come from the image titles in its sitemaps.
 - **Akşam:** Lists article URLs without headlines.
 - **Sözcü:** Sözcü's new website, from December 2023; older articles aren't in its archive.
-- **Milliyet:** Milliyet's search returns only its newest 10,000 results for each keyword; for a frequent word like 'deprem' that reaches back about two and a half years.
 - **A Haber:** Every month since March 2011. No headlines.
 - **Aydınlık:** Every month since April 2011; only scattered months before. No headlines.
 - **Bloomberg HT:** Numbered files of 1,000 articles each, back to September 2010. No headlines.
@@ -189,8 +187,9 @@ result = search("deprem", "2023-02-01", "2023-03-01", outlets=[*builtin(), "sput
 ```
 
 On the command line, `--outlets` takes any built-in id, such as `--outlets sputnik-tr`. To search
-only the seven outlets 1.0 read, name them: `cumhuriyet`, `euronews-tr`, `trt-haber`, `star`,
-`aksam`, `sozcu` and `milliyet`.
+only the outlets 1.0 read, name them: `cumhuriyet`, `euronews-tr`, `trt-haber`, `star`, `aksam`
+and `sozcu`. Milliyet, 1.0's seventh, is gone: its robots.txt now disallows the search it was
+read through.
 
 You can add an outlet of your own by describing its archive, without writing code: a
 `MonthlySitemap` for an index that lists files by month, a `ChunkedSitemap` for an index of
@@ -263,7 +262,6 @@ This section explains how the tool is meant to be used. It isn't legal advice.
 ## Limits
 
 - Most sitemap archives date articles only to the month until `fetch()` reads each page.
-- Milliyet's search returns only its newest 10,000 results for each keyword.
 - Search matches URLs and headlines, so an article that names a keyword only in its text isn't
   found. Synonyms aren't added: search for `heyelan` and `toprak kayma` together. The CHANGELOG
   lists the other known limits.
