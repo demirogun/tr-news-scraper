@@ -144,6 +144,22 @@ HABER_GLOBAL = MonthlySitemap(
 )
 
 
+HABERTURK = MonthlySitemap(
+    id="haberturk",
+    name="Habertürk",
+    index="https://www.haberturk.com/sitemap_posts.xml",
+    month_file=r"/sitemap_post_(?P<year>\d{4})(?P<month>\d{2})\.xml$",
+    grouping="last-edit",
+    article_id=r"-(?P<id>\d{6,})(?:-[a-z]+)?$",
+    earliest=Month(2006, 9),
+    notes=(
+        "Every month since September 2006. A month's file lists the articles last edited that "
+        "month, so a scan also reads the month after and keeps its articles by number. "
+        "No headlines."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -181,6 +197,7 @@ BUILTIN: tuple[Outlet, ...] = (
     DIKEN,
     EVRENSEL,
     HABER_GLOBAL,
+    HABERTURK,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()

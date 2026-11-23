@@ -132,6 +132,16 @@ EXPECTED = [
         "DHA; Haber Global",
         datetime(2023, 2, 14, 17, 36, tzinfo=ISTANBUL),
     ),
+    (
+        "haberturk",
+        (
+            "TÜRKİYE MTA DİRİ FAY HATTI HARİTASI güncellendi! Yenilenmiş MTA diri "
+            "fay hattı risk haritası: Fay hattı geçen deprem riskli iller ve "
+            "ilçeler nereler?"
+        ),
+        "Ayşe Demir",
+        datetime(2023, 3, 1, 1, 32, 18, tzinfo=ISTANBUL),
+    ),
 ]
 # The pages whose lead only structured data brings back.
 LEAD_FIRST = {"aksam", "cumhuriyet", "euronews-tr", "milliyet", "sozcu", "star", "trt-haber"}

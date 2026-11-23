@@ -72,3 +72,7 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `haber-global/index.xml` | https://haberglobal.com/sitemap.xml |
 | `haber-global/2023-02-1.xml` | https://haberglobal.com/sitemap-articles-2023-02.xml |
 | `haber-global/2023-02-2.xml` | https://haberglobal.com/sitemap-articles-2023-02-2.xml |
+| `haberturk/index.xml` | https://www.haberturk.com/sitemap_posts.xml |
+| `haberturk/2023-01.xml` | https://www.haberturk.com/sitemap_post_202301.xml |
+| `haberturk/2023-02.xml` | https://www.haberturk.com/sitemap_post_202302.xml |
+| `haberturk/2023-03.xml` | https://www.haberturk.com/sitemap_post_202303.xml |

@@ -60,6 +60,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://haberglobal.com/spor/vinicius-juniora-irkci-hakaretlerde-bulunan-taraftara-para-ve-tribunlerden-men-cezasi-234945",
         "https://haberglobal.com/gundem/tekirdagda-supheli-aractan-uyusturucu-cikti-228870",
     ),
+    (
+        "haberturk",
+        Month(2023, 2),
+        13,
+        "https://www.haberturk.com/3-super-lig-hakemi-uefa-nin-core-kursuna-katildi-3569757-spor",
+        "https://www.haberturk.com/humeze-suresi-okunusu-ve-anlami-humeze-suresi-arapca-yazilisi-turkce-anlami-meali-tefsiri-ve-okunusu-3564503",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 
