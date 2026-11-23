@@ -27,7 +27,19 @@ from tr_news_scraper._structured import (
 
 SETTINGS = (
     "structured data first; precision, original publication date with its offset, "
-    "URL date last, no extensive date search, no comments"
+    "URL date last, no extensive date search, no comments, no sign-up boxes"
+)
+SIGN_UP_BOXES = ("mail-list", "maillist", "mailing-list", "abone-ol")
+"""Words in a class or id, in any case, that name a sign-up box inside an article, such as Kısa
+Dalga's mailing list. trafilatura already drops newsletter boxes. Broader words would catch too
+much: some sites wrap the article itself in a "subscriber-content" element."""
+_LOWER = 'translate({attribute}, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")'
+SIGN_UP_XPATH = "//*[{}]".format(
+    " or ".join(
+        f'contains({_LOWER.format(attribute=attribute)}, "{word}")'
+        for word in SIGN_UP_BOXES
+        for attribute in ("@class", "@id")
+    )
 )
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 MAX_PAGE_CHARACTERS = 8_000_000
@@ -80,6 +92,7 @@ def extract(html: str, url: str, outlet_name: str = "") -> Extracted:
             with_metadata=True,
             favor_precision=True,
             include_comments=False,
+            prune_xpath=SIGN_UP_XPATH,
             date_extraction_params={
                 "original_date": True,
                 "extensive_search": False,

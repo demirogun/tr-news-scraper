@@ -377,6 +377,31 @@ def test_when_no_text_is_found_the_pages_own_facts_still_count() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "box",
+    [
+        '<section class="mail-list-wide"><div class="info"><p>Güncel haberler ve haftalık '
+        "bültenimizi e-posta ile almak için abone olun.</p></div></section>",
+        '<div id="Abone-Ol-Kutusu"><p>Son dakika haberlerini kaçırmamak için hemen bültenimize '
+        "abone olun.</p></div>",
+    ],
+)
+def test_a_sign_up_box_inside_the_article_isnt_its_text(box: str) -> None:
+    html = synthetic().replace("</article>", f"{box}</article>")
+    found = extract(html, "https://x.com.tr/a", "Örnek")
+    assert found.text is not None
+    assert found.text.split("\n") == PARAGRAPHS
+
+
+def test_an_element_named_for_subscribers_keeps_its_text() -> None:
+    # Some sites wrap the article itself in such an element; only sign-up boxes go.
+    html = synthetic().replace("<article>", '<article><div class="subscriber-content">')
+    html = html.replace("</article>", "</div></article>")
+    found = extract(html, "https://x.com.tr/a", "Örnek")
+    assert found.text is not None
+    assert found.text.split("\n") == PARAGRAPHS
+
+
 def test_text_keeps_paragraph_breaks_but_no_blank_lines_or_runs_of_spaces() -> None:
     found = extract(page("trt-haber"), "https://www.trthaber.com/haber/a-1.html", "TRT Haber")
     assert found.text is not None

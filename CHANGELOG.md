@@ -74,6 +74,8 @@ more faithfully, from their structured data first.
     `text` already has it. A description that isn't shown on the page is never added.
   - **Authors** come from JSON-LD, several joined by ", ". A name that only repeats the outlet or
     publisher is left out, and so are email addresses. Desks and agencies stay.
+  - **Sign-up boxes** inside an article, such as a mailing list's, are left out of `text`, as
+    newsletter boxes already were.
   - Because extraction changed, the articles `fetch()` kept from 1.0 are extracted again, once:
     their pages are downloaded one more time on the next `fetch()`.
 - A monthly sitemap index may list several files for one month: parts of one long list, or one
