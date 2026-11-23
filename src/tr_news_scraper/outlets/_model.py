@@ -108,18 +108,28 @@ class MonthlySitemap:
     """HTTPS URL of the sitemap index that lists the monthly files."""
     month_file: str
     """Regex with named groups ``year`` and ``month``, searched in each ``<loc>`` of the index."""
-    titles: Literal["image"] | None = None
-    """``"image"`` when ``<image:title>`` holds the article's headline (checked per outlet)."""
+    titles: Literal["image", "news"] | None = None
+    """Where the article's headline is, when the files have it (checked per outlet):
+    ``"image"`` for ``<image:title>``, ``"news"`` for Google News's ``<news:title>``."""
     earliest: Month | None = None
     """The first month with articles, as verified; shown by coverage and checked weekly."""
     extra_hosts: frozenset[str] = frozenset()
     """Hosts besides the index's own host that article URLs may use."""
     notes: str = ""
     """One or two sentences about the archive, shown by coverage."""
+    grouping: Literal["publication", "last-edit"] = "publication"
+    """What puts an article in a month's file: its publication, or its last edit
+    (``"last-edit"``, which needs ``article_id``). An article edited after its month is then in
+    a later file, and the scan looks one month ahead for it."""
+    article_id: str | None = None
+    """Regex with a named group ``id``, searched in each article URL: a number that grows with
+    publication, such as ``r"-(?P<id>\\d+)$"``."""
     hosts: frozenset[str] = field(init=False, compare=False, repr=False)
     """Every host this outlet's requests and article URLs may use (IDNA, lowercase)."""
     pattern: re.Pattern[str] = field(init=False, compare=False, repr=False)
     """``month_file``, compiled."""
+    id_pattern: re.Pattern[str] | None = field(init=False, compare=False, repr=False)
+    """``article_id``, compiled."""
 
     def __post_init__(self) -> None:
         _check_identity(self.id, self.name)
@@ -130,13 +140,19 @@ class MonthlySitemap:
             raise ValueError(f"month_file isn't a valid regular expression: {error}") from None
         if not {"year", "month"} <= set(pattern.groupindex):
             raise ValueError("month_file needs the named groups 'year' and 'month'")
-        if self.titles not in (None, "image"):
-            raise ValueError("titles must be None or 'image'")
+        if self.titles not in (None, "image", "news"):
+            raise ValueError("titles must be None, 'image' or 'news'")
         if self.earliest is not None and not isinstance(self.earliest, Month):
             raise ValueError("earliest must be a Month, such as Month(2010, 12)")
+        if self.grouping not in ("publication", "last-edit"):
+            raise ValueError("grouping must be 'publication' or 'last-edit'")
+        id_pattern = None if self.article_id is None else _id_pattern(self.article_id)
+        if self.grouping == "last-edit" and id_pattern is None:
+            raise ValueError("grouping='last-edit' needs article_id, a regex with a group 'id'")
         object.__setattr__(self, "extra_hosts", _host_set(self.extra_hosts))
         object.__setattr__(self, "hosts", self.extra_hosts | {normalize_host(index_host)})
         object.__setattr__(self, "pattern", pattern)
+        object.__setattr__(self, "id_pattern", id_pattern)
 
     @property
     def method(self) -> str:
@@ -250,6 +266,16 @@ def _https_host(field_name: str, url: str) -> str:
         return check_public_https(url)
     except HostNotAllowed as error:
         raise ValueError(f"{field_name} must be an https URL on a public host: {error}") from None
+
+
+def _id_pattern(expression: str) -> re.Pattern[str]:
+    try:
+        pattern = re.compile(expression)
+    except (re.error, TypeError) as error:
+        raise ValueError(f"article_id isn't a valid regular expression: {error}") from None
+    if "id" not in pattern.groupindex:
+        raise ValueError("article_id needs the named group 'id'")
+    return pattern
 
 
 def _reads_full_dates(fmt: str) -> bool:

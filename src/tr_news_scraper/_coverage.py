@@ -35,7 +35,8 @@ def coverage(
     >>> coverage(check=True)    # also checks every archive now: 2 requests per outlet
 
     The columns are ``outlet``, ``name``, ``method``, ``earliest`` (the first month of a
-    monthly sitemap), ``headlines`` (``no``, ``image titles`` or ``search results``), ``hosts``
+    monthly sitemap), ``headlines`` (``no``, ``image titles``, ``news titles`` or
+    ``search results``), ``hosts``
     and ``notes``. With ``check=True`` it reads each archive's index and last month, or the
     first two search pages, and adds ``ok``, ``problems``, ``oldest`` and ``newest`` (the
     months the index lists), ``sample`` and ``checked_at``. ``contact``, ``obey_robots`` and
@@ -88,7 +89,7 @@ def _earliest(outlet: Outlet) -> str | None:
 
 def _headlines(outlet: Outlet) -> str:
     if isinstance(outlet, MonthlySitemap):
-        return "image titles" if outlet.titles == "image" else "no"
+        return {"image": "image titles", "news": "news titles"}.get(outlet.titles or "", "no")
     return "search results" if outlet.title is not None else "no"
 
 

@@ -87,11 +87,41 @@ def test_month_file_must_be_a_regex_with_year_and_month_groups() -> None:
 
 
 def test_titles_and_earliest_are_checked() -> None:
-    with pytest.raises(ValueError, match="titles must be"):
-        sitemap(titles="news")
+    with pytest.raises(ValueError, match="titles must be None, 'image' or 'news'"):
+        sitemap(titles="caption")
     with pytest.raises(ValueError, match="earliest must be a Month"):
         sitemap(earliest="2010-12")
     assert sitemap(earliest=Month(2010, 12), titles="image").earliest == Month(2010, 12)
+    assert sitemap(titles="news").titles == "news"
+
+
+def test_a_sitemap_is_grouped_by_publication_unless_it_says_otherwise() -> None:
+    outlet = sitemap()
+    assert (outlet.grouping, outlet.article_id, outlet.id_pattern) == ("publication", None, None)
+
+
+def test_grouping_by_last_edit_needs_an_article_id_pattern() -> None:
+    with pytest.raises(ValueError, match="grouping='last-edit' needs article_id"):
+        sitemap(grouping="last-edit")
+    outlet = sitemap(grouping="last-edit", article_id=r"-(?P<id>\d+)$")
+    assert outlet.id_pattern is not None
+    found = outlet.id_pattern.search("https://www.example.com.tr/gundem/deprem-1234")
+    assert found is not None
+    assert found["id"] == "1234"
+
+
+@pytest.mark.parametrize("bad", ["by-day", "", None])
+def test_grouping_is_checked(bad: Any) -> None:
+    with pytest.raises(ValueError, match="grouping must be 'publication' or 'last-edit'"):
+        sitemap(grouping=bad)
+
+
+def test_article_id_must_be_a_regex_with_an_id_group() -> None:
+    with pytest.raises(ValueError, match="article_id isn't a valid regular expression"):
+        sitemap(article_id="-(")
+    with pytest.raises(ValueError, match="article_id needs the named group 'id'"):
+        sitemap(article_id=r"-(\d+)$")
+    assert sitemap(article_id=r"-(?P<id>\d+)$").grouping == "publication"
 
 
 @pytest.mark.parametrize("bad_hosts", ["static.example.com.tr", ["ok.example", ""], [None]])

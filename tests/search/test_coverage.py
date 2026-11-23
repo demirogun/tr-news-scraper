@@ -16,7 +16,7 @@ from tests.search.conftest import recorded, serve_archive, serve_milliyet
 from tr_news_scraper import coverage
 from tr_news_scraper._coverage import COVERAGE_COLUMNS, HEALTH_COLUMNS, _coverage
 from tr_news_scraper._http import Http
-from tr_news_scraper.outlets import builtin, get
+from tr_news_scraper.outlets import MonthlySitemap, builtin, get
 from tr_news_scraper.outlets._dates import ISTANBUL
 
 NOW = datetime(2026, 11, 7, 12, 0, tzinfo=ISTANBUL)
@@ -108,3 +108,14 @@ def test_coverage_builds_a_client_only_for_a_live_check(
 def test_the_package_exports_coverage() -> None:
     assert "coverage" in tr_news_scraper.__all__
     assert tr_news_scraper.coverage is coverage
+
+
+def test_an_outlet_whose_sitemaps_name_headlines_in_news_tags_says_so() -> None:
+    outlet = MonthlySitemap(
+        id="ornek",
+        name="Örnek",
+        index="https://www.example.com.tr/sitemaps/index.xml",
+        month_file=r"/(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
+        titles="news",
+    )
+    assert coverage([outlet]).loc[0, "headlines"] == "news titles"
