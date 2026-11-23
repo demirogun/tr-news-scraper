@@ -39,6 +39,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 | `aydinlik/page.html` | https://www.aydinlik.com.tr/fotogaleri/hosgoru-kentinde-ezan-ve-can-sesinin-birbirine-karistigi-yapilar-depremden-zarar-gordu-hatay-haberleri-depremde-zarar-goren-kiliselercamiler-kultur-mirasi-368527 | none |
 | `bloomberg-ht/page.html` | https://www.bloomberght.com/afet-bolgesinde-deprem-suclari-sorusturma-burolari-kurulacak-2325149 | desk |
 | `cumhuriyet/page.html` | https://www.cumhuriyet.com.tr/bilim-teknoloji/abdli-uzay-sirketi-depremin-uydu-goruntulerini-yayinladi-2049504 | desk |
+| `diken/page.html` | https://www.diken.com.tr/simdi-reklamlar-bakan-koca-deprem-bolgesinde-propaganda-filmi-cekti/ | fictional |
 | `euronews-tr/page.html` | https://tr.euronews.com/2023/02/28/kahramanmaras-depremleri-sonrasi-suriyede-22-kisi-kolera-nedeniyle-hayatini-kaybetti | none |
 | `milliyet/page.html` | https://www.milliyet.com.tr/galeri/son-depremler-listesi-7-kasim-az-once-deprem-mi-oldu-nerede-kac-siddetinde-afad-kandilli-deprem-sorgulama-7695901 | fictional |
 | `sozcu/page.html` | https://www.sozcu.com.tr/hatay-da-4-1-buyuklugunde-deprem-p55330 | desk |

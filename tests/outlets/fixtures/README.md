@@ -57,3 +57,10 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `bloomberg-ht/chunk-0185.xml` | https://www.bloomberght.com/sitemap_news_184.xml |
 | `bloomberg-ht/chunk-0186.xml` | https://www.bloomberght.com/sitemap_news_185.xml |
 | `bloomberg-ht/chunk-0231.xml` | https://www.bloomberght.com/sitemap_news_230.xml |
+| `diken/index.xml` | https://www.diken.com.tr/sitemap.xml |
+| `diken/chunk-0001.xml` | https://www.diken.com.tr/post-sitemap256.xml |
+| `diken/chunk-0177.xml` | https://www.diken.com.tr/post-sitemap80.xml |
+| `diken/chunk-0178.xml` | https://www.diken.com.tr/post-sitemap79.xml |
+| `diken/chunk-0179.xml` | https://www.diken.com.tr/post-sitemap78.xml |
+| `diken/chunk-0180.xml` | https://www.diken.com.tr/post-sitemap77.xml |
+| `diken/chunk-0256.xml` | https://www.diken.com.tr/post-sitemap.xml |

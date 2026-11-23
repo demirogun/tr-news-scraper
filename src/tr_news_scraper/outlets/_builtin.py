@@ -107,6 +107,21 @@ BLOOMBERG_HT = ChunkedSitemap(
 )
 
 
+DIKEN = ChunkedSitemap(
+    id="diken",
+    name="Diken",
+    index="https://www.diken.com.tr/sitemap.xml",
+    chunk_file=r"/post-sitemap(?P<n>\d*)\.xml$",
+    chunk_order="newest-first",
+    entry_order="newest-first",
+    earliest=Month(2013, 12),
+    notes=(
+        "Numbered files of 1,000 articles each, the newest first, back to December 2013. "
+        "No headlines."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -141,6 +156,7 @@ BUILTIN: tuple[Outlet, ...] = (
     A_HABER,
     AYDINLIK,
     BLOOMBERG_HT,
+    DIKEN,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()
