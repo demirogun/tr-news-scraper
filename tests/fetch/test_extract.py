@@ -205,6 +205,12 @@ EXPECTED = [
         "Ayşe Demir",
         datetime(2023, 2, 28, 22, 9, tzinfo=ISTANBUL),
     ),
+    (
+        "turkgun",
+        ("Sosyal medyadan depremle ilgili provokatif paylaşım yapan Ercan hakkında flaş karar"),
+        "Haber Editörü",
+        datetime(2023, 2, 28, 22, 34, tzinfo=ISTANBUL),
+    ),
 ]
 # The pages whose lead only structured data brings back.
 LEAD_FIRST = {"aksam", "cumhuriyet", "euronews-tr", "milliyet", "sozcu", "star", "trt-haber"}

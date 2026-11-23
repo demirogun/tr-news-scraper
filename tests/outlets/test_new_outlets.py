@@ -137,6 +137,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.timeturk.com/spor/alpaslan-ozturk-eyupspor-da-kadro-disi-mi-kaldi/haber-1759979",
         "https://www.timeturk.com/ekonomi/taksitle-telefon-alma-firsati/haber-1762363",
     ),
+    (
+        "turkgun",
+        Month(2023, 2),
+        20,
+        "https://www.turkgun.com/yasam/dilenen-kadinin-kucagindaki-kundaktan-cikan-soke-etti/200074",
+        "https://www.turkgun.com/dunya/bir-doneme-damgasini-vuran-oyuncu-hayatini-kaybetti/197769",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

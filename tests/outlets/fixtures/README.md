@@ -121,3 +121,5 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `timeturk/chunk-0294.xml` | https://www.timeturk.com/sitemap-posts-80.xml |
 | `timeturk/chunk-0295.xml` | https://www.timeturk.com/sitemap-posts-79.xml |
 | `timeturk/chunk-0373.xml` | https://www.timeturk.com/sitemap-posts-1.xml |
+| `turkgun/index.xml` | https://www.turkgun.com/sitemap.xml |
+| `turkgun/2023-02.xml` | https://www.turkgun.com/sitemap/news-2023-02.xml |
