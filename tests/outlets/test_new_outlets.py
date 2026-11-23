@@ -10,8 +10,13 @@ import pytest
 from requests_mock import Mocker
 
 from tr_news_scraper._http import Http
+from tr_news_scraper._http.safety import parse_xml
+from tr_news_scraper._search import collect
+from tr_news_scraper._table import OutletRun, clean_url
+from tr_news_scraper.matching import KeywordQuery
 from tr_news_scraper.outlets import ChunkedSitemap, Month, MonthlySitemap, builtin, get
 from tr_news_scraper.outlets._scan import scan
+from tr_news_scraper.outlets._sitemaps import article_id
 
 FIXTURES = Path(__file__).parent / "fixtures"
 TODAY = date(2026, 11, 23)
@@ -200,3 +205,98 @@ def test_each_new_outlet_is_built_in_and_explains_its_coverage(outlet_id: str) -
     assert isinstance(outlet, (MonthlySitemap, ChunkedSitemap))
     assert outlet.earliest is not None
     assert (outlet in builtin()) is (outlet_id != "sputnik-tr")
+
+
+FEB = Month(2023, 2)
+SITEMAP = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+
+
+def recorded_urls(outlet_id: str, name: str) -> list[str]:
+    root = parse_xml((FIXTURES / outlet_id / name).read_bytes(), max_bytes=10**8, url="https://x/")
+    return [(entry.findtext(f"{SITEMAP}loc") or "").strip() for entry in root]
+
+
+def archive_requests(requests_mock: Mocker) -> list[str]:
+    return [r.url for r in requests_mock.request_history if not r.url.endswith("robots.txt")]
+
+
+def month_files(outlet_id: str) -> list[tuple[str, str]]:
+    """An outlet's recorded files for February 2023, as (name, source URL), in index order."""
+    listing = json.loads((FIXTURES / outlet_id / "sources.json").read_text(encoding="utf-8"))
+    return [(name, url) for name, url in listing.items() if name.startswith("2023-02")]
+
+
+def test_sabahs_parts_give_every_url_once_in_index_order(http: Http, requests_mock: Mocker) -> None:
+    serve(requests_mock, "sabah")
+    found = scan(get("sabah"), http, FEB.start, FEB.next().start, today=TODAY)
+    candidates = list(found)
+    files = month_files("sabah")
+    assert len(files) == 2
+    expected = list(dict.fromkeys(u for name, _ in files for u in recorded_urls("sabah", name)))
+    assert [c.url for c in candidates] == expected
+    assert list(dict.fromkeys(c.source for c in candidates)) == [url for _, url in files]
+    assert (found.months, found.gaps) == ([FEB], [])
+
+
+def test_a_sabah_part_that_fails_is_a_gap_naming_it(http: Http, requests_mock: Mocker) -> None:
+    serve(requests_mock, "sabah")
+    (first_name, first_url), (_, second_url) = month_files("sabah")
+    requests_mock.get(second_url, status_code=404)
+    found = scan(get("sabah"), http, FEB.start, FEB.next().start, today=TODAY)
+    candidates = list(found)
+    assert [c.url for c in candidates] == recorded_urls("sabah", first_name)
+    assert {c.source for c in candidates} == {first_url}
+    [gap] = found.gaps
+    assert (gap.reason, gap.month, gap.url) == ("failed", FEB, second_url)
+    assert gap.detail.startswith("file 2 of 2 for 2023-02 couldn't be read")
+    assert found.months == []
+
+
+def test_haberturks_february_takes_marchs_articles_in_its_span_and_nothing_else(
+    http: Http, requests_mock: Mocker
+) -> None:
+    serve(requests_mock, "haberturk")
+    outlet = get("haberturk")
+    assert isinstance(outlet, MonthlySitemap)
+    found = scan(outlet, http, FEB.start, FEB.next().start, today=TODAY)
+    candidates = list(found)
+    jan, feb, mar = (recorded_urls("haberturk", f"2023-0{m}.xml") for m in (1, 2, 3))
+
+    def number(url: str) -> int | None:
+        return article_id(outlet, url)
+
+    low = max(n for u in jan if (n := number(u)) is not None)
+    high = max(n for u in feb if (n := number(u)) is not None)
+    own = [u for u in feb if (n := number(u)) is None or n > low]
+    ahead = [u for u in mar if (n := number(u)) is not None and low < n <= high]
+    assert [c.url for c in candidates] == own + ahead
+    # The recorded files hold each case: old articles edited in February, which stay out;
+    # February's articles edited in March, which come in; and March's own, which stay out.
+    later = [u for u in mar if (n := number(u)) is not None and n > high]
+    assert len(own) < len(feb)
+    assert ahead
+    assert later
+    assert {c.month for c in candidates} == {FEB}
+    requested = archive_requests(requests_mock)
+    assert sorted(requested) == sorted({*requested})
+    assert len(requested) == 4
+
+
+def test_odatvs_entries_come_with_headlines_and_days_and_search_keeps_their_days(
+    http: Http, requests_mock: Mocker
+) -> None:
+    serve(requests_mock, "odatv")
+    found = scan(get("odatv"), http, FEB.start, FEB.next().start, today=TODAY)
+    candidates = list(found)
+    assert candidates
+    assert all(c.title and c.day for c in candidates)
+    start, end = date(2023, 2, 10), date(2023, 2, 20)
+    query = KeywordQuery(["deprem"])
+    matching = [c for c in candidates if query.match(title=c.title, url=c.url)]
+    inside = [c for c in matching if c.day is not None and start <= c.day < end]
+    run = OutletRun(get("odatv"))
+    collect(run, candidates, query, start, end)
+    assert [row.url for row in run.rows] == [clean_url(c.url) for c in inside]
+    assert run.trimmed == len(matching) - len(inside)
+    assert inside
+    assert run.trimmed
