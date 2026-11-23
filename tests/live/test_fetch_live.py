@@ -1,9 +1,9 @@
 """Live check (weekly CI only): fetch still reads each outlet's articles, and finds wire copies.
 
-Run with ``uv run pytest -m live tests/live --no-cov``. It reads the three newest articles of every
-built-in outlet, about 80 pages, each downloaded once, politely: robots.txt obeyed, the honest
-User-Agent, one request per second per site. A failure names outlets, URLs and counts, never
-text from the pages.
+Run with ``uv run pytest -m live tests/live --no-cov``. It reads three articles of every
+built-in outlet, spread over last month, about 80 pages, each downloaded once, politely: robots.txt
+obeyed, the honest User-Agent, one request per second per site. A failure names outlets, URLs and
+counts, never text from the pages.
 """
 
 from __future__ import annotations
@@ -20,9 +20,10 @@ from tr_news_scraper import fetch
 from tr_news_scraper._extract import Extracted, extract
 from tr_news_scraper._http import CachePolicy, Http
 from tr_news_scraper._structured import PageFacts, alike, read_page
-from tr_news_scraper.errors import HttpError
+from tr_news_scraper.errors import HttpError, OutletFailed
 from tr_news_scraper.outlets import Month, SiteSearch, builtin, get
 from tr_news_scraper.outlets._dates import ISTANBUL
+from tr_news_scraper.outlets._model import Candidate
 from tr_news_scraper.outlets._scan import HTML_ACCEPT, describe, scan
 
 PER_OUTLET = 3
@@ -63,6 +64,7 @@ class Page:
     url: str
     found: Extracted
     facts: PageFacts
+    downloaded: bool = True
 
     @property
     def complete(self) -> bool:
@@ -81,32 +83,56 @@ def today() -> date:
     return datetime.now(ISTANBUL).date()
 
 
-def newest(http: Http) -> list[tuple[str, str]]:
-    """The newest three articles in last month's archive of each built-in outlet; for Milliyet,
-    its first three search results for "deprem" this week."""
+def spread(candidates: list[Candidate]) -> list[Candidate]:
+    """The newest, the middle and the oldest of candidates ordered newest first. The newest three
+    can belong to one series whose articles open with the same line; articles days apart share
+    only page furniture."""
+    if len(candidates) <= PER_OUTLET:
+        return candidates
+    last = len(candidates) - 1
+    return [candidates[0], candidates[last // 2], candidates[last]]
+
+
+def sampled(http: Http) -> list[tuple[str, str | None, str | None]]:
+    """Three articles in last month's archive of each built-in outlet, spread over the month;
+    for Milliyet, its first three search results for "deprem" this week. Each row is an outlet,
+    a URL and, for an outlet whose archive couldn't be read, no URL but the reason."""
     last_month = Month.of(today()).previous()
-    rows: list[tuple[str, str]] = []
+    rows: list[tuple[str, str | None, str | None]] = []
     for outlet in builtin(include_opt_in=True):
-        if isinstance(outlet, SiteSearch):
-            week = today() - timedelta(days=7)
-            found = scan(outlet, http, week, today() + timedelta(days=1), ["deprem"], today=today())
-            candidates = list(found)
-        else:
-            found = scan(outlet, http, last_month.start, last_month.next().start, today=today())
-            candidates = sorted(
-                found,
-                key=lambda c: c.lastmod or datetime.min.replace(tzinfo=ISTANBUL),
-                reverse=True,
-            )
-        rows += [(outlet.id, candidate.url) for candidate in candidates[:PER_OUTLET]]
+        try:
+            if isinstance(outlet, SiteSearch):
+                week = today() - timedelta(days=7)
+                found = scan(
+                    outlet, http, week, today() + timedelta(days=1), ["deprem"], today=today()
+                )
+                candidates = list(found)
+            else:
+                found = scan(outlet, http, last_month.start, last_month.next().start, today=today())
+                candidates = spread(
+                    sorted(
+                        found,
+                        key=lambda c: c.lastmod or datetime.min.replace(tzinfo=ISTANBUL),
+                        reverse=True,
+                    )
+                )
+        except OutletFailed as failure:
+            rows.append((outlet.id, None, failure.reason))
+            continue
+        rows += [(outlet.id, candidate.url, None) for candidate in candidates[:PER_OUTLET]]
     return rows
 
 
 @pytest.fixture(scope="module")
 def pages(http: Http) -> list[Page]:
-    """Every sampled article, downloaded once and read both ways."""
+    """Every sampled article, downloaded once and read both ways. An outlet whose archive
+    couldn't be read gives one page that wasn't downloaded, so the checks name it."""
     read: list[Page] = []
-    for outlet_id, url in newest(http):
+    for outlet_id, url, reason in sampled(http):
+        if url is None:
+            unread = Extracted(error=f"its archive couldn't be read: {reason}")
+            read.append(Page(outlet_id, "", unread, PageFacts(), downloaded=False))
+            continue
         outlet = get(outlet_id)
         try:
             page = http.get(
@@ -116,7 +142,8 @@ def pages(http: Http) -> list[Page]:
                 cache=CachePolicy(no_store=True),
             )
         except HttpError as error:
-            read.append(Page(outlet_id, url, Extracted(error=describe(error)), PageFacts()))
+            failed = Extracted(error=describe(error))
+            read.append(Page(outlet_id, url, failed, PageFacts(), downloaded=False))
             continue
         html = page.text()
         read.append(Page(outlet_id, url, extract(html, page.url, outlet.name), read_page(html)))
@@ -142,15 +169,18 @@ def test_pages_give_a_headline_a_time_and_text_overall_and_outlet_by_outlet(
         if sum(p.complete for p in sampled) < min(MIN_OF_THREE, len(sampled))
     }
     assert short == {}, missing
-    assert {outlet.id for outlet in builtin(include_opt_in=True)} <= set(by_outlet(pages))
+    unsampled = {outlet.id for outlet in builtin(include_opt_in=True)} - set(by_outlet(pages))
+    assert unsampled == set(), "no article in last month's archive"
 
 
 @pytest.mark.live
 def test_json_ld_gives_the_article_on_two_of_each_outlets_three_pages(pages: list[Page]) -> None:
-    # Otherwise fetch would fall back without anyone noticing.
+    # Otherwise fetch would fall back without anyone noticing. Pages that couldn't be downloaded
+    # are the first test's to report.
+    downloaded = [p for p in pages if p.downloaded]
     without = {
         outlet: sum(not p.facts.article for p in sampled)
-        for outlet, sampled in by_outlet(pages).items()
+        for outlet, sampled in by_outlet(downloaded).items()
         if outlet not in WITHOUT_JSON_LD
         and sum(p.facts.article for p in sampled) < min(MIN_OF_THREE, len(sampled))
     }
@@ -219,3 +249,16 @@ def test_three_wire_stories_each_form_one_copy_group() -> None:
         assert pd.notna(groups[first]), first
         assert groups[first] == groups[second], (first, second)
     assert len({groups[first] for first, _ in COPIES}) == len(COPIES)
+
+
+def test_the_sample_spreads_over_the_month_and_keeps_short_lists() -> None:
+    month = Month(2026, 10)
+    candidates = [
+        Candidate(outlet="x", url=f"https://x.com.tr/{number}", month=month) for number in range(10)
+    ]
+    assert [c.url for c in spread(candidates)] == [
+        "https://x.com.tr/0",
+        "https://x.com.tr/4",
+        "https://x.com.tr/9",
+    ]
+    assert spread(candidates[:2]) == candidates[:2]
