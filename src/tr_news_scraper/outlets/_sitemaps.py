@@ -71,7 +71,7 @@ def listed_months(index: etree._Element, outlet: MonthlySitemap) -> dict[Month, 
     same URL listed twice counts once. Entries that don't match the outlet's ``month_file``
     pattern are ignored, as are impossible months.
     """
-    prefix = _expect(index, "sitemapindex", "a sitemap index")
+    prefix = index_prefix(index)
     months: dict[Month, list[str]] = {}
     for entry in index.iterchildren(f"{prefix}sitemap"):
         url = (entry.findtext(f"{prefix}loc") or "").strip()
@@ -156,6 +156,12 @@ def read_entries(
             published=parse_lastmod(entry.findtext(_NEWS_DATE)),
             title=None if title_path is None else _clean(entry.findtext(title_path)),
         )
+
+
+def index_prefix(index: etree._Element) -> str:
+    """The ``{namespace}`` prefix a sitemap index's entries use. Raises ``SitemapError`` for a
+    document that isn't a sitemap index."""
+    return _expect(index, "sitemapindex", "a sitemap index")
 
 
 def article_id(outlet: MonthlySitemap, url: str) -> int | None:
