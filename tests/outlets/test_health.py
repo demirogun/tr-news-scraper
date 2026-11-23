@@ -252,3 +252,16 @@ def test_at_most_three_empty_files_are_read(http: Http, requests_mock: Mocker) -
     assert health.problems == ("the first 3 files for 2026-10 are empty",)
     archive = [r.url for r in requests_mock.request_history if not r.url.endswith("robots.txt")]
     assert archive == [INDEX, *parts[:3]]
+
+
+def test_news_titles_that_disappear_are_a_problem(http: Http, requests_mock: Mocker) -> None:
+    outlet = MonthlySitemap(
+        id="ornek",
+        name="Örnek",
+        index=INDEX,
+        month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
+        titles="news",
+    )
+    serve_sitemaps(requests_mock, LAST_MONTH)
+    health = check(outlet, http, today=TODAY)
+    assert health.problems == ("only 0 of 3 entries in the file for 2026-10 have a headline",)

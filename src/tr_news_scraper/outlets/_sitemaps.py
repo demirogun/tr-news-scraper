@@ -6,21 +6,43 @@ Everything here works on parsed documents, so it never touches the network.
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from typing import Literal
 
 from lxml import etree
 
-from tr_news_scraper.outlets._dates import parse_lastmod
+from tr_news_scraper.outlets._dates import ISTANBUL, parse_lastmod
 from tr_news_scraper.outlets._model import Candidate, Gap, Month, MonthlySitemap
 
 IMAGE_NS = "http://www.google.com/schemas/sitemap-image/1.1"
+NEWS_NS = "http://www.google.com/schemas/sitemap-news/0.9"
 _IMAGE_TITLE = f"{{{IMAGE_NS}}}image/{{{IMAGE_NS}}}title"
+_NEWS_DATE = f"{{{NEWS_NS}}}news/{{{NEWS_NS}}}publication_date"
+_NEWS_TITLE = f"{{{NEWS_NS}}}news/{{{NEWS_NS}}}title"
 
 
 class SitemapError(ValueError):
     """A sitemap isn't the kind of document expected (an index, or a list of URLs)."""
+
+
+@dataclass(frozen=True, slots=True)
+class Entry:
+    """One ``<url>`` of a sitemap file, before any check of its URL."""
+
+    url: str
+    """The ``<loc>``, without surrounding whitespace; empty when missing."""
+    lastmod: datetime | None
+    published: datetime | None
+    """Google News's ``<news:publication_date>``, timezone-aware (O4a)."""
+    title: str | None
+    """The headline, from where the outlet says it is; spaces collapsed, NFC."""
+
+    @property
+    def day(self) -> date | None:
+        """The publication day in Türkiye, when the entry states it."""
+        return None if self.published is None else self.published.astimezone(ISTANBUL).date()
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,30 +118,44 @@ def read_month_file(
     """The candidates in one month's sitemap file, in file order.
 
     URLs lose surrounding whitespace and must be HTTPS on the outlet's hosts; other entries are
-    dropped and counted. Headlines come from ``<image:title>`` only when the outlet says its
-    image titles are headlines.
+    dropped and counted. A Google News publication date gives a candidate its day (O4a), and
+    headlines come from where the outlet says they are (``titles``).
     """
-    prefix = _expect(urlset, "urlset", "a list of URLs (<urlset>)")
-    want_titles = outlet.titles == "image"
     candidates: list[Candidate] = []
     entries = dropped = 0
-    for entry in urlset.iterchildren(f"{prefix}url"):
+    for entry in read_entries(urlset, outlet.titles):
         entries += 1
-        url = (entry.findtext(f"{prefix}loc") or "").strip()
-        if not url or not outlet.accepts(url):
+        if not entry.url or not outlet.accepts(entry.url):
             dropped += 1
             continue
         candidates.append(
             Candidate(
                 outlet=outlet.id,
-                url=url,
+                url=entry.url,
                 month=month,
-                title=_clean(entry.findtext(_IMAGE_TITLE)) if want_titles else None,
-                lastmod=parse_lastmod(entry.findtext(f"{prefix}lastmod")),
+                title=entry.title,
+                day=entry.day,
+                lastmod=entry.lastmod,
                 source=source,
             )
         )
     return MonthFile(candidates, entries, dropped)
+
+
+def read_entries(
+    urlset: etree._Element, titles: Literal["image", "news"] | None
+) -> Iterator[Entry]:
+    """Every ``<url>`` entry of a sitemap file, in file order. Raises ``SitemapError`` for a
+    document that isn't a list of URLs."""
+    prefix = _expect(urlset, "urlset", "a list of URLs (<urlset>)")
+    title_path = {"image": _IMAGE_TITLE, "news": _NEWS_TITLE}.get(titles or "")
+    for entry in urlset.iterchildren(f"{prefix}url"):
+        yield Entry(
+            url=(entry.findtext(f"{prefix}loc") or "").strip(),
+            lastmod=parse_lastmod(entry.findtext(f"{prefix}lastmod")),
+            published=parse_lastmod(entry.findtext(_NEWS_DATE)),
+            title=None if title_path is None else _clean(entry.findtext(title_path)),
+        )
 
 
 def _expect(root: etree._Element, name: str, description: str) -> str:

@@ -79,7 +79,8 @@ class Candidate:
     title: str | None = None
     """The headline, when the archive lists real headlines (never a photo caption)."""
     day: date | None = None
-    """The publication day, when the archive states it (site search)."""
+    """The publication day in Türkiye, when the archive states it: a site search's result, or a
+    sitemap entry's Google News publication date."""
     lastmod: datetime | None = None
     """The sitemap's last-edit time (timezone-aware). It isn't the publication time."""
     source: str = ""

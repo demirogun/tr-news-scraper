@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Sitemaps with Google News tags: an entry's `news:publication_date` gives the article its `day`,
+  so `search()` keeps it only when that day is in the range. With `MonthlySitemap(titles="news")`,
+  the entry's `news:title` is its headline.
+
 ### Changed
 - `fetch()` reads what each page states about itself first: its JSON-LD article data, its `<h1>`
   and its meta tags. trafilatura still reads the article's body, and stands in for anything the
