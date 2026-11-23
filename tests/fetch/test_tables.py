@@ -10,13 +10,9 @@ import pytest
 
 from tr_news_scraper._extract import Extracted
 from tr_news_scraper._fetch import Fetched, FetchRun
-from tr_news_scraper._fetched import (
-    ADDED_COLUMNS,
-    FETCH_REPORT_COLUMNS,
-    build_fetch_result,
-    clean_headline,
-)
+from tr_news_scraper._fetched import ADDED_COLUMNS, FETCH_REPORT_COLUMNS, build_fetch_result
 from tr_news_scraper._http import HostStats
+from tr_news_scraper._structured import clean_headline
 from tr_news_scraper._table import ARTICLE_COLUMNS, Row, articles_frame
 from tr_news_scraper.outlets import Month, get
 from tr_news_scraper.outlets._dates import ISTANBUL

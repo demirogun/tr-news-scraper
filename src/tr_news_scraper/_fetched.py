@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -12,8 +11,9 @@ from typing import TYPE_CHECKING
 from tr_news_scraper._copies import copy_groups
 from tr_news_scraper._extract import Extracted
 from tr_news_scraper._fetch import Fetched, FetchRun
+from tr_news_scraper._structured import clean_headline
 from tr_news_scraper._table import day_series, http_counts, string_series, time_series
-from tr_news_scraper.matching import KeywordQuery, fold
+from tr_news_scraper.matching import KeywordQuery
 from tr_news_scraper.outlets import Outlet
 from tr_news_scraper.outlets._dates import ISTANBUL
 
@@ -37,22 +37,6 @@ FETCH_REPORT_COLUMNS = ("outlet", "name", *FETCH_COUNTS, "detail", *HTTP_COUNTS,
 COPIES_NOTE = "{count:,} articles are copies of a story another article also carries (copy_group)."
 MAX_DETAILS = 3
 NOT_READ = "it wasn't read"
-_SEPARATOR = re.compile(r"\s+[-|–—]\s+")
-
-
-def clean_headline(title: str | None, outlet_name: str) -> str | None:
-    """A page's headline without a trailing part that names the outlet, like "… - Sözcü
-    Gazetesi" or "… | STAR". The outlet is recognized by the first word of its name."""
-    if title is None:
-        return None
-    separators = list(_SEPARATOR.finditer(title))
-    if not separators:
-        return title
-    last = separators[-1]
-    head = title[: last.start()].strip()
-    if head and fold(outlet_name.split()[0]) in fold(title[last.end() :]):
-        return head
-    return title
 
 
 @dataclass(frozen=True, eq=False, repr=False)
