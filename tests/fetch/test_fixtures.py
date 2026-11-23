@@ -8,6 +8,7 @@ import re
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import lxml.html
 import pytest
@@ -129,3 +130,111 @@ def test_an_author_needs_a_fictional_name() -> None:
     assert script.parse_authors(["Ali Veli=Ayşe Demir"]) == {"Ali Veli": "Ayşe Demir"}
     with pytest.raises(SystemExit, match="Real Name=Fictional Name"):
         script.parse_authors(["Ali Veli"])
+
+
+LEAD = "Bölgedeki okullarda eğitim yeniden başladı ve öğrenciler sınıflarına döndü."
+
+
+def lead_page(author: object = None, meta_author: str | None = None) -> str:
+    article: dict[str, object] = {"@type": "NewsArticle", "headline": "Başlık", "description": LEAD}
+    if author is not None:
+        article["author"] = author
+    meta = "" if meta_author is None else f'<meta name="author" content="{meta_author}">'
+    return f"""<html><head><title>Başlık</title>
+    <meta name="description" content="{LEAD}"><meta property="og:description" content="{LEAD}">
+    {meta}<script type="application/ld+json">{json.dumps(article, ensure_ascii=False)}</script>
+    </head><body><h1>Başlık</h1><h2>  {LEAD}  </h2>
+    <div class="author-box">Muhabir Kişi</div><p>Metnin ilk paragrafı burada yazıyor.</p>
+    <p>Muhabir Kişi bildiriyor.</p></body></html>"""
+
+
+def built(page: str, authors: dict[str, str] | None = None) -> tuple[str, Any]:
+    skeleton = script.Skeleton(authors or {}).build(page)
+    return skeleton, lxml.html.document_fromstring(skeleton)
+
+
+def json_ld(root: Any) -> Any:
+    return json.loads(root.xpath("//script[@type='application/ld+json']")[0].text)
+
+
+def test_equal_texts_get_equal_filler_wherever_they_are() -> None:
+    _, root = built(lead_page())
+    fillers = {
+        json_ld(root)["description"],
+        root.xpath("string(//meta[@name='description']/@content)"),
+        root.xpath("string(//meta[@property='og:description']/@content)"),
+        " ".join(root.xpath("string(//h2)").split()),
+    }
+    assert len(fillers) == 1
+    assert set(words(fillers.pop())) <= ALLOWED
+
+
+def test_different_texts_still_get_different_filler() -> None:
+    _, root = built(lead_page())
+    paragraphs = [p.text_content() for p in root.iter("p")]
+    assert len(set(paragraphs)) == 2
+
+
+@pytest.mark.parametrize(
+    "author",
+    [
+        {"@type": "Person", "name": "Muhabir Kişi"},
+        [{"@type": "Person", "name": "Muhabir Kişi"}],
+        "Muhabir Kişi",
+        {"@type": "Person", "name": "MUHABİR KİŞİ / muhabir@ornek.com.tr"},
+    ],
+    ids=["object", "list", "string", "capitals-and-email"],
+)
+def test_a_json_ld_byline_becomes_fictional_everywhere_without_an_author_option(
+    author: object,
+) -> None:
+    skeleton, root = built(lead_page(author=author))
+    for spelling in ("Muhabir Kişi", "MUHABİR KİŞİ", "muhabir-kisi"):
+        assert spelling not in skeleton
+    stated = json_ld(root)["author"]
+    name = stated[0] if isinstance(stated, list) else stated
+    name = name["name"] if isinstance(name, dict) else name
+    fictional = tr_lower(name.split(" / ")[0])
+    assert fictional in {tr_lower(name) for name in script.FICTIONAL_NAMES}
+    assert tr_lower(root.xpath("string(//div[@class='author-box'])").strip()) == fictional
+
+
+def test_a_meta_author_becomes_fictional_too() -> None:
+    skeleton, root = built(lead_page(meta_author="Muhabir Kişi"))
+    assert "Muhabir Kişi" not in skeleton
+    assert root.xpath("string(//meta[@name='author']/@content)") in script.FICTIONAL_NAMES
+
+
+@pytest.mark.parametrize(
+    "author",
+    [
+        {"@type": "Person", "name": "IHA"},
+        {"@type": "Person", "name": "Haber Merkezi"},
+        {"@type": "Organization", "name": "Örnek Medya Grubu"},
+        {"@type": "NewsMediaOrganization", "name": "Örnek Medya Grubu"},
+        {"@type": "Person", "name": "Anadolu Ajansı"},
+    ],
+)
+def test_desks_agencies_and_organizations_keep_their_names(author: dict[str, str]) -> None:
+    _, root = built(lead_page(author=author))
+    assert json_ld(root)["author"]["name"] == author["name"]
+
+
+def test_an_author_option_still_decides_the_fictional_name() -> None:
+    skeleton, root = built(
+        lead_page(author={"@type": "Person", "name": "Muhabir Kişi"}),
+        {"Muhabir Kişi": "Elif Kaya"},
+    )
+    assert json_ld(root)["author"]["name"] == "Elif Kaya"
+    assert "Muhabir Kişi" not in skeleton
+
+
+def test_each_real_name_gets_its_own_fictional_name() -> None:
+    authors = [
+        {"@type": "Person", "name": "Muhabir Kişi"},
+        {"@type": "Person", "name": "Öteki Yazar"},
+    ]
+    _, root = built(lead_page(author=authors))
+    first, second = (entry["name"] for entry in json_ld(root)["author"])
+    assert first != second
+    assert {first, second} <= set(script.FICTIONAL_NAMES)

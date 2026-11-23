@@ -7,10 +7,13 @@ headline and the dates. It replaces:
 - every text in a paragraph, list item, caption, quote, table cell or subheading, every other
   body text of three or more words, every long ``alt`` or ``title`` attribute, every
   description, and every JSON-LD body or description with filler words of the same length.
+  Equal texts get equal filler, so a lead that repeats the page's description still does.
   Texts of eight or more words include "deprem". Only letters make words, so dates and times
   stay, and so does text inside elements named for times, dates, authors or sources: that's
   metadata, not article text;
-- each name given with ``--author`` with the fictional name after its ``=``, wherever it appears.
+- every person named as an author in JSON-LD or a ``meta[name=author]`` tag, and each name given
+  with ``--author``, with a fictional name, wherever and however it's spelled: as written, in
+  capitals, in title case and as a URL slug. Organizations, desks and agencies keep their names.
 
 It removes scripts other than JSON-LD, styles, iframes, SVG, comments and noscript blocks, keeps
 only the canonical link, and declares UTF-8. The input is a page saved as UTF-8 text. Usage::
@@ -23,12 +26,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections.abc import Iterable
+import unicodedata
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
 import lxml.html
 from lxml import etree
+
+from tr_news_scraper.matching import fold, tr_lower
 
 FILLER = (
     "örnek",
@@ -47,6 +53,26 @@ FILLER = (
 KEYWORD = "deprem"
 MIN_WORDS = 3
 KEYWORD_FROM = 8
+FICTIONAL_NAMES = (
+    "Ayşe Demir",
+    "Deniz Yılmaz",
+    "Elif Kaya",
+    "Can Öztürk",
+    "Zeynep Arslan",
+    "Mert Çelik",
+    "Selin Aydın",
+    "Burak Şahin",
+)
+"""Fictional names for bylines that ``--author`` doesn't cover, used in this order."""
+# Words (folded) that mark a byline as a desk, an agency or an outlet rather than a person.
+DESK_WORDS = frozenset(
+    {
+        *("haber", "haberler", "haberleri", "ajans", "ajansi", "merkez", "merkezi"),
+        *("servis", "servisi", "gazete", "gazetesi", "editor", "editoru", "masasi"),
+        *("desk", "medya", "news", "staff"),
+    }
+)
+AGENCIES = frozenset({"aa", "iha", "dha", "anka", "afp", "ap", "dpa", "reuters", "sputnik", "bbc"})
 # The headline, times, and the JSON-LD scripts already handled keep their own text.
 KEPT_TAGS = frozenset({"h1", "time", "title", "script"})
 CONTENT_TAGS = frozenset(
@@ -63,14 +89,21 @@ _METADATA = re.compile(r"time|date|author|byline|writer|source|editor", re.IGNOR
 _JSON_TEXT = re.compile(
     r'("(?:articleBody|description|text|abstract|caption)"\s*:\s*")((?:[^"\\]|\\.)*)(")'
 )
+_JSON_AUTHOR = re.compile(r'"author"\s*:\s*(\{[^{}]*\}|\[[^\[\]]*\]|"(?:[^"\\]|\\.)*")')
+_JSON_NAME = re.compile(r'"name"\s*:\s*"((?:[^"\\]|\\.)*)"')
+_EMAIL = re.compile(r"[^\s/,;|()<>]+@[^\s/,;|()<>]+")
+_NAME_EDGES = " /,;|-–—·()<>"
 
 
 class Skeleton:
     """Builds the skeleton of one page; ``seed`` keeps the filler deterministic."""
 
     def __init__(self, authors: dict[str, str]) -> None:
-        self.authors = authors
+        self.authors = dict(authors)
         self.seed = 0
+        self._fillers: dict[str, str] = {}
+        for real, fictional in authors.items():
+            self._add_spellings(real, fictional)
 
     def filler(self, words: int) -> str:
         chosen = [FILLER[(self.seed + i) % len(FILLER)] for i in range(words)]
@@ -81,16 +114,43 @@ class Skeleton:
         return f"{_TURKISH_UPPER.get(text[:1], text[:1].upper())}{text[1:]}."
 
     def replace_long(self, text: str | None, minimum: int = MIN_WORDS) -> str | None:
-        """Filler for a text of ``minimum`` or more words; anything shorter is kept."""
+        """Filler for a text of ``minimum`` or more words; anything shorter is kept. The same
+        text, with its spaces collapsed and NFC, always gets the same filler."""
         if text is None:
             return None
         words = len(_WORDS.findall(text))
-        return self.filler(words) if words >= minimum else text
+        if words < minimum:
+            return text
+        key = unicodedata.normalize("NFC", " ".join(text.split()))
+        if key not in self._fillers:
+            self._fillers[key] = self.filler(words)
+        return self._fillers[key]
 
     def rename(self, text: str) -> str:
         for real, fictional in self.authors.items():
             text = text.replace(real, fictional)
         return text
+
+    def add_byline(self, name: str) -> None:
+        """Give a person named as an author a fictional name, in every spelling (see above)."""
+        person = " ".join(_EMAIL.sub(" ", name).split()).strip(_NAME_EDGES)
+        if not person or _is_desk(person):
+            return
+        known = {fold(real): fictional for real, fictional in self.authors.items()}
+        self._add_spellings(person, known.get(fold(person)) or self._unused_name())
+
+    def _add_spellings(self, real: str, fictional: str) -> None:
+        """Map ``real`` as written, in capitals, in title case and as a URL slug, unless a
+        spelling is mapped already."""
+        variants = {
+            real: _same_case(real, fictional),
+            tr_upper(real): tr_upper(fictional),
+            tr_title(real): tr_title(fictional),
+            _slug(real): _slug(fictional),
+        }
+        for spelling, replacement in variants.items():
+            if spelling:
+                self.authors.setdefault(spelling, replacement)
 
     def json_ld(self, value: Any) -> Any:
         if isinstance(value, dict):
@@ -117,6 +177,13 @@ class Skeleton:
         markup = lxml.html.tostring(root, encoding="unicode", doctype="<!DOCTYPE html>")
         return f"{markup}\n"
 
+    def _unused_name(self) -> str:
+        taken = {fold(name) for name in self.authors.values()}
+        for name in FICTIONAL_NAMES:
+            if fold(name) not in taken:
+                return name
+        raise SystemExit("too many bylines on one page: add names to FICTIONAL_NAMES")
+
     def _strip(self, root: lxml.html.HtmlElement) -> None:
         etree.strip_elements(root, etree.Comment, etree.ProcessingInstruction, with_tail=False)
         for element in list(root.iter("script")):
@@ -137,15 +204,22 @@ class Skeleton:
                 _drop(meta)
 
     def _json_ld_text(self, text: str) -> str:
-        """JSON-LD with its text fields replaced. Sites often publish JSON-LD that isn't strict
-        JSON, and readers like trafilatura accept it, so malformed JSON-LD is edited in place
-        instead of being dropped."""
+        """JSON-LD with its text fields replaced and its bylines registered. Sites often publish
+        JSON-LD that isn't strict JSON, and readers like trafilatura accept it, so malformed
+        JSON-LD is edited in place instead of being dropped."""
         try:
             data = json.loads(text)
         except ValueError:
+            for found in _JSON_AUTHOR.finditer(text):
+                value = found.group(1)
+                names = _JSON_NAME.findall(value) if value[:1] in "{[" else [value.strip('"')]
+                for name in names:
+                    self.add_byline(name)
             return _JSON_TEXT.sub(
                 lambda m: f"{m.group(1)}{self.replace_long(m.group(2))}{m.group(3)}", text
             )
+        for name in _authors(data):
+            self.add_byline(name)
         return json.dumps(self.json_ld(data), ensure_ascii=False)
 
     def _metadata(self, head: lxml.html.HtmlElement) -> None:
@@ -154,6 +228,8 @@ class Skeleton:
             name = (meta.get("name") or meta.get("property") or "").lower()
             if name in DESCRIPTIONS:
                 meta.set("content", self.replace_long(meta.get("content")) or "")
+            elif name == "author" and meta.get("content"):
+                self.add_byline(meta.get("content") or "")
 
     def _body(self, body: lxml.html.HtmlElement) -> None:
         for element in body.iter():
@@ -183,6 +259,56 @@ class Skeleton:
                 element.tail = self.rename(element.tail)
             for attribute, value in element.attrib.items():
                 element.set(attribute, self.rename(value))
+
+
+def tr_upper(text: str) -> str:
+    """Turkish capitals: ``"Şişli"`` → ``"ŞİŞLİ"``."""
+    return "".join(_TURKISH_UPPER.get(letter, letter.upper()) for letter in text)
+
+
+def tr_title(text: str) -> str:
+    """Turkish title case: ``"AYŞE DEMİR"`` → ``"Ayşe Demir"``."""
+    return " ".join(tr_upper(word[:1]) + tr_lower(word[1:]) for word in text.split())
+
+
+def _same_case(model: str, name: str) -> str:
+    return tr_upper(name) if model == tr_upper(model) else name
+
+
+def _slug(name: str) -> str:
+    return "-".join(fold(name).split())
+
+
+def _is_desk(name: str) -> bool:
+    """Whether a byline names a desk, an agency or an outlet rather than a person: one word,
+    a known agency, or a word like "haber" or "ajans"."""
+    words = set(fold(name).split())
+    return len(words) < 2 or bool(words & AGENCIES) or bool(words & DESK_WORDS)
+
+
+def _authors(data: Any) -> Iterator[str]:
+    """The names of the people every ``author`` in JSON-LD data names; organizations are left
+    out."""
+    if isinstance(data, list):
+        for item in data:
+            yield from _authors(item)
+    elif isinstance(data, dict):
+        for key, value in data.items():
+            if key == "author":
+                yield from _person_names(value)
+            else:
+                yield from _authors(value)
+
+
+def _person_names(value: Any) -> Iterable[str]:
+    for item in value if isinstance(value, list) else [value]:
+        if isinstance(item, str):
+            yield item
+        elif isinstance(item, dict) and isinstance(item.get("name"), str):
+            kinds = item.get("@type")
+            kinds = [kinds] if isinstance(kinds, str) else kinds if isinstance(kinds, list) else []
+            if not any(str(kind).endswith("Organization") for kind in kinds):
+                yield item["name"]
 
 
 def _is_metadata(element: lxml.html.HtmlElement) -> bool:
@@ -218,6 +344,11 @@ def main() -> None:
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(skeleton.build(html), encoding="utf-8", newline="\n")
     print(f"{arguments.page.name}: {len(html):,} → {arguments.output.stat().st_size:,} bytes")
+    renamed = sorted(
+        real for real in skeleton.authors if real not in parse_authors(arguments.author)
+    )
+    if renamed:
+        print(f"bylines given fictional names: {len(renamed)} spellings")
 
 
 if __name__ == "__main__":
