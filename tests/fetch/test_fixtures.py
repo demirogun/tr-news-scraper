@@ -27,6 +27,7 @@ OUTLETS = (
     "evrensel",
     "haber-global",
     "haberturk",
+    "kisa-dalga",
     "milliyet",
     "sozcu",
     "star",

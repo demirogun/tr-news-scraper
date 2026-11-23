@@ -131,6 +131,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 | Evrensel | `evrensel` | chunked sitemap | 2011-02 | no | yes |
 | Haber Global | `haber-global` | monthly sitemap | 2019-02 | no | yes |
 | Habertürk | `haberturk` | monthly sitemap | 2006-09 | no | yes |
+| Kısa Dalga | `kisa-dalga` | chunked sitemap | 2020-06 | no | yes |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
 - **Euronews Türkçe:** Matched on URLs only: the titles in its sitemaps describe photos, not articles.
@@ -146,6 +147,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Evrensel:** Numbered files of 10,000 articles each, back to February 2011. No headlines.
 - **Haber Global:** Every month since February 2019, the busiest in two parts. No headlines.
 - **Habertürk:** Every month since September 2006. A month's file lists the articles last edited that month, so a scan also reads the month after and keeps its articles by number. No headlines.
+- **Kısa Dalga:** Four large files of up to 40,000 articles each, back to June 2020. No headlines.
 
 Every outlet's archive is allowed by its robots.txt. Where an archive has no headlines, articles
 are matched on their URLs; after `fetch()`, `text_matched` shows which keywords each text names.

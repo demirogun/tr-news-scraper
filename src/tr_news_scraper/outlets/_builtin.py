@@ -160,6 +160,18 @@ HABERTURK = MonthlySitemap(
 )
 
 
+KISA_DALGA = ChunkedSitemap(
+    id="kisa-dalga",
+    name="Kısa Dalga",
+    index="https://kisadalga.net/sitemap.xsd",
+    chunk_file=r"/sitemap-news-(?P<n>\d+)\.xml$",
+    chunk_order="oldest-first",
+    entry_order="oldest-first",
+    earliest=Month(2020, 6),
+    notes="Four large files of up to 40,000 articles each, back to June 2020. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -198,6 +210,7 @@ BUILTIN: tuple[Outlet, ...] = (
     EVRENSEL,
     HABER_GLOBAL,
     HABERTURK,
+    KISA_DALGA,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()

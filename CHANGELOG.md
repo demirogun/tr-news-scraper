@@ -17,6 +17,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **Evrensel** (`evrensel`): back to February 2011.
   - **Haber Global** (`haber-global`): every month since February 2019.
   - **Habertürk** (`haberturk`): every month since September 2006, including the articles edited a month later.
+  - **Kısa Dalga** (`kisa-dalga`): back to June 2020.
 - Opt-in outlets: built in, but read only when you name them. `builtin(include_opt_in=True)` lists
   every built-in outlet, the opt-in ones last; `get()` finds any of them by id; and `coverage()`
   lists them all, with a new `default` column that says which ones `search()` reads without being

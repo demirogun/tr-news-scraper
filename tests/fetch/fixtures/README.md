@@ -44,6 +44,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 | `evrensel/page.html` | https://www.evrensel.net/haber/481019/afadin-duzce-depreminde-sinifta-kaldigi-ortaya-cikti | desk |
 | `haber-global/page.html` | https://haberglobal.com/dunya/suriyede-depremde-can-kaybi-5-bin-814e-yukseldi-232069 | desk |
 | `haberturk/page.html` | https://www.haberturk.com/turkiye-diri-fay-haritalari-mta-yenilenmis-mta-diri-fay-hatti-haritasi-fay-hatti-gecen-deprem-riskli-bolgeler-iller-ve-ilceler-listesi-3569010 | fictional |
+| `kisa-dalga/page.html` | https://kisadalga.net/haber/detay/naci-gorurden-rahatlatan-deprem-aciklamasi-zamanla-azalacak_58844 | none |
 | `milliyet/page.html` | https://www.milliyet.com.tr/galeri/son-depremler-listesi-7-kasim-az-once-deprem-mi-oldu-nerede-kac-siddetinde-afad-kandilli-deprem-sorgulama-7695901 | fictional |
 | `sozcu/page.html` | https://www.sozcu.com.tr/hatay-da-4-1-buyuklugunde-deprem-p55330 | desk |
 | `star/page.html` | https://www.star.com.tr/yasam/vatandaslar-gozlerine-inanamadi-depremin-ardindan-camura-bulandi-haber-1767589/ | agency |

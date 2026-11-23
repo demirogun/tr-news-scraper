@@ -76,3 +76,7 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `haberturk/2023-01.xml` | https://www.haberturk.com/sitemap_post_202301.xml |
 | `haberturk/2023-02.xml` | https://www.haberturk.com/sitemap_post_202302.xml |
 | `haberturk/2023-03.xml` | https://www.haberturk.com/sitemap_post_202303.xml |
+| `kisa-dalga/index.xml` | https://kisadalga.net/sitemap.xsd |
+| `kisa-dalga/chunk-0001.xml` | https://kisadalga.net/sitemap-news-01.xml |
+| `kisa-dalga/chunk-0002.xml` | https://kisadalga.net/sitemap-news-02.xml |
+| `kisa-dalga/chunk-0004.xml` | https://kisadalga.net/sitemap-news-04.xml |
