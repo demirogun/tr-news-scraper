@@ -29,6 +29,7 @@ OUTLETS = (
     "haberturk",
     "kisa-dalga",
     "milliyet",
+    "mynet",
     "sozcu",
     "star",
     "trt-haber",

@@ -74,6 +74,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://kisadalga.net/haber/detay/avrupa-birliginin-schengen-vizesine-dijital-basvuru-donemi_54785",
         "https://kisadalga.net/haber/detay/bahceli-dertlerini-anlatmak-isteyen-depremzedeleri-boyle-azarladi-sessizlik-olacak-dagilin-gidin_58837",
     ),
+    (
+        "mynet",
+        Month(2023, 2),
+        60,
+        "https://www.mynet.com/tok-zit-anlamlisi-nedir-tokun-zit-anlamlisi-kelime-ve-cumle-icinde-ornek-kullanim-170100287402",
+        "https://www.mynet.com/haber/oruc-ne-zaman-basliyor-ve-bitiyor-2023-ramazan-ayi-ne-zaman-baslayacak-iste-ilk-sahur-tarihi-110107101340",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

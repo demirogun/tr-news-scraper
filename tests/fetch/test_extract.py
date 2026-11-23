@@ -148,6 +148,12 @@ EXPECTED = [
         None,
         datetime(2023, 2, 28, 23, 59, tzinfo=ISTANBUL),
     ),
+    (
+        "mynet",
+        "Deprem çantasına konulması gereken yiyecekler! Çantanızı önceden ayarlayın",
+        "Mynet Haber Merkezi",
+        datetime(2023, 2, 9, 11, 16, 26, tzinfo=ISTANBUL),
+    ),
 ]
 # The pages whose lead only structured data brings back.
 LEAD_FIRST = {"aksam", "cumhuriyet", "euronews-tr", "milliyet", "sozcu", "star", "trt-haber"}

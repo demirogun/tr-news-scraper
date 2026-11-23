@@ -80,3 +80,7 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `kisa-dalga/chunk-0001.xml` | https://kisadalga.net/sitemap-news-01.xml |
 | `kisa-dalga/chunk-0002.xml` | https://kisadalga.net/sitemap-news-02.xml |
 | `kisa-dalga/chunk-0004.xml` | https://kisadalga.net/sitemap-news-04.xml |
+| `mynet/index.xml` | https://www.mynet.com/sitemaps/all-index.xml |
+| `mynet/2023-02-1.xml` | https://www.mynet.com/sitemaps/monthly/egitim/2023-02.xml |
+| `mynet/2023-02-2.xml` | https://www.mynet.com/sitemaps/monthly/finans/2023-02.xml |
+| `mynet/2023-02-3.xml` | https://www.mynet.com/sitemaps/monthly/haber/2023-02.xml |

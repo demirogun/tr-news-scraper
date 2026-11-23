@@ -172,6 +172,20 @@ KISA_DALGA = ChunkedSitemap(
 )
 
 
+MYNET = MonthlySitemap(
+    id="mynet",
+    name="Mynet",
+    index="https://www.mynet.com/sitemaps/all-index.xml",
+    month_file=r"/sitemaps/monthly/[^/]+/(?P<year>\d{4})-(?P<month>\d{2})(?:-p\d+)?\.xml$",
+    extra_hosts=frozenset({"finans.mynet.com"}),
+    earliest=Month(2013, 3),
+    notes=(
+        "A portal that carries much agency copy, in one file per section and month: every "
+        "month since August 2014, scattered months before. No headlines."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -211,6 +225,7 @@ BUILTIN: tuple[Outlet, ...] = (
     HABER_GLOBAL,
     HABERTURK,
     KISA_DALGA,
+    MYNET,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()
