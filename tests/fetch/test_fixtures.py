@@ -61,14 +61,50 @@ def words(text: str) -> list[str]:
     return [tr_lower(word) for word in LETTERS.findall(text)]
 
 
+def is_metadata(element: Any) -> bool:
+    """Whether an element, or one around it, is named for a time, date, author or source: the
+    script keeps such text."""
+    return any(script._is_metadata(node) for node in (element, *element.iterancestors()))
+
+
+def body_texts(page: Any) -> list[str]:
+    """Every text in the page's body, in order, outside the headline, the times and metadata,
+    which keep their own: the texts the script must have replaced."""
+    texts: list[str] = []
+    for element in page.find("body").iter():
+        if not isinstance(element.tag, str) or is_metadata(element):
+            continue
+        if any(node.tag in script.KEPT_TAGS for node in element.iterancestors()):
+            continue
+        if element.tag not in script.KEPT_TAGS:
+            texts.append(element.text or "")
+        texts.append(element.tail or "")
+    return texts
+
+
 @pytest.mark.parametrize("outlet", OUTLETS)
-def test_every_paragraph_in_a_skeleton_is_filler(outlet: str) -> None:
+def test_every_paragraph_and_body_text_in_a_skeleton_is_filler(outlet: str) -> None:
+    # Some outlets set their article text in paragraphs, others in plain elements such as divs.
     page = lxml.html.parse(str(FIXTURES / outlet / "page.html")).getroot()
-    paragraphs = [p.text_content() for p in page.iter("p")]
-    long = [text for text in paragraphs if len(words(text)) >= script.MIN_WORDS]
-    assert long, "the skeleton should keep its paragraphs"
+    paragraphs = [p.text_content() for p in page.iter("p") if not is_metadata(p)]
+    texts = (*paragraphs, *body_texts(page))
+    long = [text for text in texts if len(words(text)) >= script.MIN_WORDS]
+    assert long, "the skeleton should keep its texts"
     leftovers = [text[:60] for text in long if not set(words(text)) <= ALLOWED]
     assert leftovers == []
+
+
+def test_body_texts_take_plain_elements_and_leave_the_headline_and_metadata() -> None:
+    page = lxml.html.document_fromstring(
+        "<html><body><h1>Başlık kendi metnini korur</h1>"
+        "<p class='news-timestamps'><b>Giriş Tarihi: 28 Şubat 2023</b></p>"
+        "<div>Haberin gerçek metni burada <b>kalın</b> devam ediyor</div></body></html>"
+    )
+    assert [text for text in body_texts(page) if text] == [
+        "Haberin gerçek metni burada ",
+        "kalın",
+        " devam ediyor",
+    ]
 
 
 @pytest.mark.parametrize("outlet", OUTLETS)
