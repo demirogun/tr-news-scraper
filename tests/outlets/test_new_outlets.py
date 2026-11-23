@@ -88,6 +88,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.ntv.com.tr/sporskor/son-dakika-galatasarayda-seferovicle-yollar-ayrildi,xkSCsJzRb0SdYhlVZkZjsg",
         "https://www.ntv.com.tr/otomobil/tesla-meksikada-fabrika-kuracak,u5GRzYew6UWZIWnRKXQyZQ",
     ),
+    (
+        "odatv",
+        Month(2023, 2),
+        60,
+        "https://www.odatv.com/guncel/yalanlari-ve-gercekleriyle-28-subat-272623",
+        "https://www.odatv.com/dunya/fransada-isyan-yayiliyor-269118",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

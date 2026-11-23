@@ -31,6 +31,7 @@ OUTLETS = (
     "milliyet",
     "mynet",
     "ntv",
+    "odatv",
     "sozcu",
     "star",
     "trt-haber",

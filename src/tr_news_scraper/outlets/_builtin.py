@@ -198,6 +198,20 @@ NTV = ChunkedSitemap(
 )
 
 
+ODATV = MonthlySitemap(
+    id="odatv",
+    name="Odatv",
+    index="https://www.odatv.com/categories.xml",
+    month_file=r"/[a-z0-9-]+/(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
+    titles="news",
+    earliest=Month(2007, 9),
+    notes=(
+        "One file per section and month, every month since September 2007. Headlines and "
+        "publication days come from its Google News tags."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -239,6 +253,7 @@ BUILTIN: tuple[Outlet, ...] = (
     KISA_DALGA,
     MYNET,
     NTV,
+    ODATV,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()

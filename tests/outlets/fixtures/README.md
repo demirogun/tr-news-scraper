@@ -93,3 +93,7 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `ntv/chunk-0647.xml` | https://www.ntv.com.tr/story-sitemap/647 |
 | `ntv/chunk-0648.xml` | https://www.ntv.com.tr/story-sitemap/648 |
 | `ntv/chunk-0952.xml` | https://www.ntv.com.tr/story-sitemap/952 |
+| `odatv/index.xml` | https://www.odatv.com/categories.xml |
+| `odatv/2023-02-1.xml` | https://www.odatv.com/guncel/2023-02.xml |
+| `odatv/2023-02-2.xml` | https://www.odatv.com/ekonomi/2023-02.xml |
+| `odatv/2023-02-3.xml` | https://www.odatv.com/dunya/2023-02.xml |

@@ -48,6 +48,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 | `milliyet/page.html` | https://www.milliyet.com.tr/galeri/son-depremler-listesi-7-kasim-az-once-deprem-mi-oldu-nerede-kac-siddetinde-afad-kandilli-deprem-sorgulama-7695901 | fictional |
 | `mynet/page.html` | https://www.mynet.com/deprem-cantasina-konulmasi-gereken-yiyecekler-cantanizi-onceden-ayarlayin-1219718-myyemek | desk |
 | `ntv/page.html` | https://www.ntv.com.tr/turkiye/galeri-deprem-bolgesinde-hangi-ilde-kac-cadir-kuruldu,RHVWIEpipUG1zJcIg3-07A | none |
+| `odatv/page.html` | https://www.odatv.com/guncel/sadat-kurucusundan-deprem-cikisi-suruden-ayrilmayin-diye-ilahi-ikaz-272069 | none |
 | `sozcu/page.html` | https://www.sozcu.com.tr/hatay-da-4-1-buyuklugunde-deprem-p55330 | desk |
 | `star/page.html` | https://www.star.com.tr/yasam/vatandaslar-gozlerine-inanamadi-depremin-ardindan-camura-bulandi-haber-1767589/ | agency |
 | `trt-haber/page.html` | https://www.trthaber.com/haber/bilim-teknoloji/deprem-felaketinden-sonra-dijital-ikiz-teknolojisi-hizla-yayginlasiyor-750285.html | fictional |
