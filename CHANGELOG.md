@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+`search()` now reads 25 outlets by default instead of 7, so the same search finds more articles
+and makes more requests. Every outlet is still read from its own archive, under 1.0's robots.txt
+and politeness rules; outlets are searched in parallel, each at one request per second. To search
+only 1.0's seven outlets, name them with `outlets=` or `--outlets`. `fetch()` also reads pages
+more faithfully, from their structured data first.
+
 ### Added
 - New built-in outlets, each checked live against its robots.txt and its archive before it
   was added. All but one are read by default:
@@ -16,15 +22,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **Diken** (`diken`): back to December 2013.
   - **Evrensel** (`evrensel`): back to February 2011.
   - **Haber Global** (`haber-global`): every month since February 2019.
-  - **Habertürk** (`haberturk`): every month since September 2006, including the articles edited a month later.
+  - **Habertürk** (`haberturk`): every month since September 2006, including the articles
+    edited a month later.
   - **Kısa Dalga** (`kisa-dalga`): back to June 2020.
   - **Mynet** (`mynet`): a portal with much agency copy, every month since August 2014.
   - **NTV** (`ntv`): back to December 2008.
   - **Odatv** (`odatv`): every month since September 2007, with headlines and publication days.
   - **Olay** (`olay`): a regional paper of Bursa, back to September 2014.
-  - **Özgür Kocaeli** (`ozgur-kocaeli`): a regional paper of Kocaeli, every month since September 2010.
+  - **Özgür Kocaeli** (`ozgur-kocaeli`): a regional paper of Kocaeli, every month since
+    September 2010.
   - **Sabah** (`sabah`): every month since November 2003.
-  - **Sputnik Türkiye** (`sputnik-tr`): every month since November 2014; opt-in, because it's funded by the Russian state.
+  - **Sputnik Türkiye** (`sputnik-tr`): every month since November 2014; opt-in, because it's
+    funded by the Russian state.
   - **Takvim** (`takvim`): every month since February 2009.
   - **Timeturk** (`timeturk`): back to January 2014.
   - **Türkgün** (`turkgun`): every month since March 2019, with headlines.
@@ -37,12 +46,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   says how to include it.
 - Sitemaps with Google News tags: an entry's `news:publication_date` gives the article its `day`,
   so `search()` keeps it only when that day is in the range. With `MonthlySitemap(titles="news")`,
-  the entry's `news:title` is its headline.
+  the entry's `news:title` is its headline, and `coverage()` says `news titles`.
 - `MonthlySitemap(grouping="last-edit", article_id=...)`, for archives that file each article under
   the month of its last edit, so an article edited a month later is only in the next month's file.
   `article_id` is a regex whose group `id` is a number that grows with publication. For each
   month, the scan also reads the month before and the month after, and keeps the articles whose
-  ids fall in the month's span: each file is read once, so n months cost n + 2 files.
+  ids fall in the month's span: each file is read once, so n months cost n + 2 files. The health
+  check reports such an archive when fewer than 99% of its entries give an id.
 - `ChunkedSitemap`, a third kind of outlet, for archives of numbered files in publication order
   instead of months. You declare which file holds the oldest articles and the order inside each
   file. A scan dates the files by their entries and finds a date range in a few requests, at most
@@ -73,6 +83,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   find one with entries.
 
 ### Fixed
+- 1.0's page fixture for Milliyet, in its source distribution and repository, kept the names of
+  the columnists the page lists in a sidebar. It's rebuilt without them, and the fixture script
+  now replaces every journalist's name it can find on a page, not only the byline.
 - `published` keeps the page's own UTC offset. 1.0 read every time as Türkiye's, so a page that said
   23:30+01:00 came out as 23:30+03:00 instead of 01:30 the next day, and Euronews Türkçe got only
   the day from its URLs. Now Euronews Türkçe gets the exact time, and a date in a URL is used only

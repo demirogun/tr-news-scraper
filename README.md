@@ -3,7 +3,7 @@
 # tr-news-scraper
 
 Search Turkish news archives by keyword and date range, politely. tr-news-scraper finds the
-articles seven Turkish-language outlets published about your keywords, reads their text, author
+articles 25 Turkish-language outlets published about your keywords, reads their text, author
 and publication time, and tells you what each outlet could and couldn't provide. It obeys every
 site's robots.txt and sends each site one request per second.
 
@@ -177,7 +177,25 @@ are matched on their URLs; after `fetch()`, `text_matched` shows which keywords 
 `coverage()` lists the same without a request, and `coverage(check=True)` checks each archive now.
 A weekly check on GitHub reads every outlet's real archive and opens an issue when one breaks.
 
-You can add an outlet that publishes monthly sitemaps by describing it, without writing code:
+`search()` reads the outlets marked "yes" under Default. Sputnik Türkiye, funded by the Russian
+state, is opt-in: it's read only when you name it, alongside the others or alone.
+`builtin(include_opt_in=True)` lists every built-in outlet.
+
+```python
+from tr_news_scraper import search
+from tr_news_scraper.outlets import builtin
+
+result = search("deprem", "2023-02-01", "2023-03-01", outlets=[*builtin(), "sputnik-tr"])
+```
+
+On the command line, `--outlets` takes any built-in id, such as `--outlets sputnik-tr`. To search
+only the seven outlets 1.0 read, name them: `cumhuriyet`, `euronews-tr`, `trt-haber`, `star`,
+`aksam`, `sozcu` and `milliyet`.
+
+You can add an outlet of your own by describing its archive, without writing code: a
+`MonthlySitemap` for an index that lists files by month, a `ChunkedSitemap` for an index of
+numbered files in publication order, or a `SiteSearch` for a search page that robots.txt allows.
+An outlet that publishes monthly sitemaps:
 
 ```python
 from tr_news_scraper import search
@@ -190,6 +208,26 @@ haber = MonthlySitemap(
     month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
 )
 result = search("deprem", "2023-02-01", "2023-03-01", outlets=[*builtin(), haber])
+```
+
+A month may list several files, and all are read. `titles="news"` takes headlines from Google News
+tags, and `grouping="last-edit"` with an `article_id` pattern handles an archive that files each
+article under the month of its last edit. For an archive of numbered files, say which file holds
+the oldest articles and how each file orders its own; a search finds its date range in a few
+requests:
+
+```python
+from tr_news_scraper.outlets import ChunkedSitemap, Month
+
+arsiv = ChunkedSitemap(
+    id="arsiv",
+    name="Arşiv",
+    index="https://arsiv.example/sitemap.xml",
+    chunk_file=r"/post-sitemap(?P<n>\d*)\.xml$",
+    chunk_order="newest-first",
+    entry_order="newest-first",
+    earliest=Month(2014, 1),
+)
 ```
 
 ## Responsible use
@@ -224,7 +262,7 @@ This section explains how the tool is meant to be used. It isn't legal advice.
 
 ## Limits
 
-- Sitemap archives date articles only to the month until `fetch()` reads each page.
+- Most sitemap archives date articles only to the month until `fetch()` reads each page.
 - Milliyet's search returns only its newest 10,000 results for each keyword.
 - Search matches URLs and headlines, so an article that names a keyword only in its text isn't
   found. Synonyms aren't added: search for `heyelan` and `toprak kayma` together. The CHANGELOG
