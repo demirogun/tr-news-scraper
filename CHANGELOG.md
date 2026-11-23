@@ -55,7 +55,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `published` keeps the page's own UTC offset. 1.0 read every time as Türkiye's, so a page that said
   23:30+01:00 came out as 23:30+03:00 instead of 01:30 the next day, and Euronews Türkçe got only
   the day from its URLs. Now Euronews Türkçe gets the exact time, and a date in a URL is used only
-  when the page states none.
+  when the page states none. A page without JSON-LD's `datePublished` is dated by its
+  `article:published_time` meta tag, in either ISO 8601 form.
 
 ## [1.0.0] - 2026-11-08
 

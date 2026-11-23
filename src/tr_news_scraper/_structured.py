@@ -60,7 +60,8 @@ class PageFacts:
     headline: str | None = None
     """The article object's ``headline``."""
     published: datetime | None = None
-    """The article object's ``datePublished``, in Europe/Istanbul (F3c)."""
+    """The article object's ``datePublished``; without one, the ``article:published_time``
+    meta tag (Open Graph). In Europe/Istanbul (F3c)."""
     authors: tuple[str, ...] = ()
     """The article object's author names, each once."""
     publisher: str | None = None
@@ -100,7 +101,8 @@ def read_page(html: str) -> PageFacts:
     return PageFacts(
         article=bool(article),
         headline=headline,
-        published=read_time(article.get("datePublished")),
+        published=read_time(article.get("datePublished"))
+        or read_time(tags.get("article:published_time")),
         authors=_names(article.get("author")),
         publisher=line(_name(article.get("publisher"))),
         description=description,

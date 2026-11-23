@@ -302,3 +302,14 @@ def test_clean_headline_needs_an_outlet_name_to_clean_anything() -> None:
     assert clean_headline("Hatay'da deprem - Sözcü Gazetesi", "") == (
         "Hatay'da deprem - Sözcü Gazetesi"
     )
+
+
+def test_without_json_ld_the_open_graph_publication_time_counts() -> None:
+    # Sputnik Türkiye's pages have no JSON-LD article and write the time in ISO 8601's basic
+    # form, which htmldate doesn't read.
+    head = '<meta property="article:published_time" content="20230228T2347+0300">'
+    assert read_page(page(head=head)).published == datetime(2023, 2, 28, 23, 47, tzinfo=ISTANBUL)
+    with_json_ld = read_page(
+        page(article=news(datePublished="2023-02-27T10:00:00+03:00"), head=head)
+    )
+    assert with_json_ld.published == datetime(2023, 2, 27, 10, 0, tzinfo=ISTANBUL)
