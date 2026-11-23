@@ -2,7 +2,8 @@
 
 One page per built-in outlet, made with `scripts/make_page_fixtures.py` from pages read on
 2026-11-08 with tr-news-scraper's own client: robots.txt obeyed, honest User-Agent, one request per
-second per site.
+second per site. The seven were rebuilt on 2026-11-23 from the same saved pages, with the rules
+below; nothing was downloaded again.
 
 A skeleton keeps the page's structure, headline, dates and metadata, so fetch's tests exercise each
 outlet's real markup. It doesn't keep the article:
@@ -12,14 +13,20 @@ outlet's real markup. It doesn't keep the article:
   - every description;
   - every JSON-LD `articleBody` or `description`.
 
-  Texts of eight or more words include "deprem". Dates, times, and text inside elements named
-  for times, dates, authors or sources stay.
-- **Fictional names:** journalists' bylines became fictional names, wherever they appeared. Desk
-  and agency names ("Haber Merkezi", "IHA") stay.
+  Equal texts, and texts 98% alike, get the same filler, so a lead that repeats the page's
+  description still does; any other text gets filler unlike every other's. Texts of eight or more
+  words include "deprem". Dates, times, and text inside elements named for times, dates, authors or
+  sources stay.
+- **Fictional names:** every journalist named as an author, in JSON-LD, a meta tag or the page's
+  byline, became a fictional name in every spelling: as written, in capitals, title case and
+  lowercase, folded, as a URL slug, and as the usernames sites make of it. Desk and agency names
+  ("Haber Merkezi", "IHA") stay.
 - **Removed:** scripts other than JSON-LD, styles, iframes, SVG, comments and noscript blocks.
   Only the canonical link stays, and every page declares UTF-8.
 
-No file here contains article text or a real journalist's name.
+No file here contains article text or a real journalist's name. After the rebuild, every word of
+each real byline (folded, longer than two letters) was searched for in its skeleton, and none was
+found.
 
 | File | Source | Byline |
 |---|---|---|
@@ -31,10 +38,13 @@ No file here contains article text or a real journalist's name.
 | `star/page.html` | https://www.star.com.tr/yasam/vatandaslar-gozlerine-inanamadi-depremin-ardindan-camura-bulandi-haber-1767589/ | agency |
 | `trt-haber/page.html` | https://www.trthaber.com/haber/bilim-teknoloji/deprem-felaketinden-sonra-dijital-ikiz-teknolojisi-hizla-yayginlasiyor-750285.html | fictional |
 
-To rebuild one, save the page as UTF-8 text and run, with one `--author` for every spelling of the
-byline, its URL slug and any username:
+To rebuild one, save the page as UTF-8 text and run the script. Bylines named in JSON-LD or a
+`meta[name=author]` tag get fictional names on their own; give `--author` for a byline that appears
+only in the page's text, and to choose the fictional name:
 
 ```bash
 uv run python scripts/make_page_fixtures.py page.html tests/fetch/fixtures/<outlet>/page.html \
     --author "Real Name=Fictional Name"
 ```
+
+Then search the skeleton for every word of the real byline before committing it.

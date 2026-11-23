@@ -22,6 +22,7 @@ from tr_news_scraper._extract import (
     from_json,
     to_json,
 )
+from tr_news_scraper._structured import read_page
 from tr_news_scraper.matching import KeywordQuery
 from tr_news_scraper.outlets import get
 from tr_news_scraper.outlets._dates import ISTANBUL
@@ -47,7 +48,7 @@ EXPECTED = [
     (
         "aksam",
         "Çocuklara deprem nasıl anlatılır?",
-        "AYŞE DEMİR",
+        "Ayşe Demir",
         datetime(2023, 2, 25, 7, 0, tzinfo=ISTANBUL),
     ),
     (
@@ -141,6 +142,10 @@ def test_each_outlets_page_yields_headline_byline_time_and_text(
     assert found.published is not None
     assert found.published.tzinfo is ISTANBUL
     assert found.text is not None
+    # Every one of these pages shows its lead, which trafilatura alone left out.
+    lead = read_page(page(outlet)).lead
+    assert lead is not None
+    assert found.text.startswith(f"{lead}\n")
     words = found.text.lower().split()
     filler = [word.strip(".") for word in words if word.strip(".") in FILLER]
     assert len(words) >= 30
