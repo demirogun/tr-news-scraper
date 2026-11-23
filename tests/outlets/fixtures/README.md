@@ -107,3 +107,6 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `olay/chunk-0433.xml` | https://www.olay.com.tr/post-sitemap1.xml |
 | `ozgur-kocaeli/index.xml` | https://www.ozgurkocaeli.com.tr/sitemap.xml |
 | `ozgur-kocaeli/2023-02.xml` | https://www.ozgurkocaeli.com.tr/sites/535/sitemaps/sitemap-2023-02.xml |
+| `sabah/index.xml` | https://www.sabah.com.tr/sitemap/post.xml |
+| `sabah/2023-02-1.xml` | https://www.sabah.com.tr/sitemaparchives/post/2023-2-1.xml |
+| `sabah/2023-02-2.xml` | https://www.sabah.com.tr/sitemaparchives/post/2023-2.xml |

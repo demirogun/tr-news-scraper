@@ -34,6 +34,7 @@ OUTLETS = (
     "odatv",
     "olay",
     "ozgur-kocaeli",
+    "sabah",
     "sozcu",
     "star",
     "trt-haber",

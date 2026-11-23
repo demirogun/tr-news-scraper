@@ -240,6 +240,20 @@ OZGUR_KOCAELI = MonthlySitemap(
 )
 
 
+SABAH = MonthlySitemap(
+    id="sabah",
+    name="Sabah",
+    index="https://www.sabah.com.tr/sitemap/post.xml",
+    month_file=_TURKUVAZ_MONTHS,
+    extra_hosts=frozenset({"finans.sabah.com.tr"}),
+    earliest=Month(2003, 11),
+    notes=(
+        "Every month since November 2003, the busiest in parts; about 3% of its articles are "
+        "on finans.sabah.com.tr. No headlines."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -284,6 +298,7 @@ BUILTIN: tuple[Outlet, ...] = (
     ODATV,
     OLAY,
     OZGUR_KOCAELI,
+    SABAH,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()

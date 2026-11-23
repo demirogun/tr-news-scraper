@@ -51,6 +51,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 | `odatv/page.html` | https://www.odatv.com/guncel/sadat-kurucusundan-deprem-cikisi-suruden-ayrilmayin-diye-ilahi-ikaz-272069 | none |
 | `olay/page.html` | https://www.olay.com.tr/cevad-prekazi-formasinin-gelirini-depremzedelere-bagisladi-1101348 | fictional |
 | `ozgur-kocaeli/page.html` | https://www.ozgurkocaeli.com.tr/haber/13963045/kahramanmarasta-77-buyuklugunde-deprem | none |
+| `sabah/page.html` | https://www.sabah.com.tr/yasam/deprem-odemelerinin-yuzde-80i-tamamlandi-6339963 | fictional |
 | `sozcu/page.html` | https://www.sozcu.com.tr/hatay-da-4-1-buyuklugunde-deprem-p55330 | desk |
 | `star/page.html` | https://www.star.com.tr/yasam/vatandaslar-gozlerine-inanamadi-depremin-ardindan-camura-bulandi-haber-1767589/ | agency |
 | `trt-haber/page.html` | https://www.trthaber.com/haber/bilim-teknoloji/deprem-felaketinden-sonra-dijital-ikiz-teknolojisi-hizla-yayginlasiyor-750285.html | fictional |
