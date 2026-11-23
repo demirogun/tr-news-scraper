@@ -16,6 +16,7 @@ from datetime import date, datetime
 import pandas as pd
 import pytest
 
+from tests.live.networks import refused_on_github
 from tr_news_scraper import fetch
 from tr_news_scraper._extract import Extracted, extract
 from tr_news_scraper._http import CachePolicy, Http
@@ -56,6 +57,10 @@ COPIES = [
 ]
 
 
+Sample = tuple[list[tuple[str, str | None, str | None]], frozenset[str]]
+"""Sampled rows (outlet, URL or none, reason or none), and the outlets refused on GitHub."""
+
+
 @dataclass(frozen=True)
 class Page:
     """One sampled article: what fetch extracted, and what the page states."""
@@ -93,12 +98,14 @@ def spread(candidates: list[Candidate]) -> list[Candidate]:
     return [candidates[0], candidates[last // 2], candidates[last]]
 
 
-def sampled(http: Http) -> list[tuple[str, str | None, str | None]]:
+def sampled(http: Http) -> Sample:
     """Three articles in last month's archive of each built-in outlet, spread over the month.
     Each row is an outlet, a URL and, for an outlet whose archive couldn't be read, no URL but
-    the reason."""
+    the reason. Outlets whose sites refuse GitHub's runner come back apart, to be skipped by name
+    (tests/live/networks.py)."""
     last_month = Month.of(today()).previous()
     rows: list[tuple[str, str | None, str | None]] = []
+    refused: set[str] = set()
     for outlet in builtin(include_opt_in=True):
         try:
             found = scan(outlet, http, last_month.start, last_month.next().start, today=today())
@@ -110,18 +117,32 @@ def sampled(http: Http) -> list[tuple[str, str | None, str | None]]:
                 )
             )
         except OutletFailed as failure:
+            if refused_on_github(outlet.id, failure):
+                refused.add(outlet.id)
+                continue
             rows.append((outlet.id, None, failure.reason))
             continue
         rows += [(outlet.id, candidate.url, None) for candidate in candidates[:PER_OUTLET]]
-    return rows
+    return rows, frozenset(refused)
 
 
 @pytest.fixture(scope="module")
-def pages(http: Http) -> list[Page]:
+def sample(http: Http) -> Sample:
+    return sampled(http)
+
+
+@pytest.fixture(scope="module")
+def refused(sample: Sample) -> frozenset[str]:
+    """The outlets whose sites refused GitHub's runner in this run."""
+    return sample[1]
+
+
+@pytest.fixture(scope="module")
+def pages(http: Http, sample: Sample) -> list[Page]:
     """Every sampled article, downloaded once and read both ways. An outlet whose archive
     couldn't be read gives one page that wasn't downloaded, so the checks name it."""
     read: list[Page] = []
-    for outlet_id, url, reason in sampled(http):
+    for outlet_id, url, reason in sample[0]:
         if url is None:
             unread = Extracted(error=f"its archive couldn't be read: {reason}")
             read.append(Page(outlet_id, "", unread, PageFacts(), downloaded=False))
@@ -152,7 +173,7 @@ def by_outlet(pages: list[Page]) -> dict[str, list[Page]]:
 
 @pytest.mark.live
 def test_pages_give_a_headline_a_time_and_text_overall_and_outlet_by_outlet(
-    pages: list[Page],
+    pages: list[Page], refused: frozenset[str]
 ) -> None:
     missing = [(p.outlet, p.url, p.found.error) for p in pages if not p.complete]
     assert sum(p.complete for p in pages) >= MIN_SHARE * len(pages), missing
@@ -162,8 +183,16 @@ def test_pages_give_a_headline_a_time_and_text_overall_and_outlet_by_outlet(
         if sum(p.complete for p in sampled) < min(MIN_OF_THREE, len(sampled))
     }
     assert short == {}, missing
-    unsampled = {outlet.id for outlet in builtin(include_opt_in=True)} - set(by_outlet(pages))
+    every = {outlet.id for outlet in builtin(include_opt_in=True)}
+    unsampled = every - set(by_outlet(pages)) - refused
     assert unsampled == set(), "no article in last month's archive"
+
+
+@pytest.mark.live
+def test_sites_that_refuse_githubs_runners_are_named(refused: frozenset[str]) -> None:
+    if refused:
+        names = ", ".join(sorted(refused))
+        pytest.skip(f"{names}: refuse GitHub's runners with HTTP 403 (tests/live/networks.py)")
 
 
 @pytest.mark.live

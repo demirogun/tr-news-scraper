@@ -12,7 +12,9 @@ from datetime import date, datetime
 
 import pytest
 
+from tests.live.networks import problems_refused_on_github, refused_on_github
 from tr_news_scraper._http import Http
+from tr_news_scraper.errors import OutletFailed
 from tr_news_scraper.outlets import Month, Outlet, builtin, get
 from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._health import check
@@ -73,6 +75,8 @@ def outlet_id(outlet: Outlet) -> str:
 @pytest.mark.parametrize("outlet", builtin(include_opt_in=True), ids=outlet_id)
 def test_every_outlet_passes_its_health_check(http: Http, outlet: Outlet) -> None:
     health = check(outlet, http, today=today())
+    if problems_refused_on_github(outlet.id, health.problems):
+        pytest.skip(f"{outlet.id} refuses GitHub's runners with HTTP 403 (tests/live/networks.py)")
     assert health.ok, "; ".join(health.problems)
 
 
@@ -85,7 +89,14 @@ def test_reference_months_still_hold_their_articles(
 ) -> None:
     outlet = get(outlet_id)
     found = scan(outlet, http, month.start, month.next().start, today=today())
-    candidates = list(found)
+    try:
+        candidates = list(found)
+    except OutletFailed as failure:
+        if refused_on_github(outlet_id, failure):
+            pytest.skip(
+                f"{outlet_id} refuses GitHub's runners with HTTP 403 (tests/live/networks.py)"
+            )
+        raise
     assert found.gaps == []
     assert len(candidates) >= minimum, f"{len(candidates)} articles in {month}"
     if getattr(outlet, "titles", None) is not None:
