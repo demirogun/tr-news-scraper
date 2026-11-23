@@ -25,6 +25,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.ahaber.com.tr/yasam/2025/10/02/dogal-afetlerden-koruyan-dua-zilzal-suresinin-turkce-arapca-okunusu-deprem-aninda-okunur-mu",
         "https://www.ahaber.com.tr/gundem/2023/01/31/altili-masada-yeni-kaos-ahmet-davutoglundan-ortaklarina-yaylim-atesi-icazet-almadan-konusanlar-lutfen-susun",
     ),
+    (
+        "aydinlik",
+        Month(2023, 2),
+        20,
+        "https://www.aydinlik.com.tr/haber/unsal-ban-ve-ailesi-hakkinda-tutuklama-karari-367827",
+        "https://www.aydinlik.com.tr/haber/istiklal-ve-yeni-emperyalizmin-cikis-yollari-364719",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

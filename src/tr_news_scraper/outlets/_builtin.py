@@ -79,6 +79,16 @@ A_HABER = MonthlySitemap(
 )
 
 
+AYDINLIK = MonthlySitemap(
+    id="aydinlik",
+    name="Aydınlık",
+    index="https://www.aydinlik.com.tr/sitemap/index",
+    month_file=r"/sitemap/(?P<year>\d{4})/(?P<month>\d{1,2})$",
+    earliest=Month(2010, 2),
+    notes="Every month since April 2011; only scattered months before. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -111,6 +121,7 @@ BUILTIN: tuple[Outlet, ...] = (
     SOZCU,
     MILLIYET,
     A_HABER,
+    AYDINLIK,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()

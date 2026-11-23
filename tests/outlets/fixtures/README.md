@@ -49,3 +49,5 @@ maps its files to the URLs they came from, and the tests serve them there.
 |---|---|
 | `a-haber/index.xml` | https://www.ahaber.com.tr/sitemap/post.xml |
 | `a-haber/2023-02.xml` | https://www.ahaber.com.tr/sitemaparchives/post/2023-2.xml |
+| `aydinlik/index.xml` | https://www.aydinlik.com.tr/sitemap/index |
+| `aydinlik/2023-02.xml` | https://www.aydinlik.com.tr/sitemap/2023/2 |

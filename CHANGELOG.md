@@ -11,6 +11,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New built-in outlets, each checked live against its robots.txt and its archive before it
   was added. All but one are read by default:
   - **A Haber** (`a-haber`): every month since March 2011.
+  - **Aydınlık** (`aydinlik`): every month since April 2011.
 - Opt-in outlets: built in, but read only when you name them. `builtin(include_opt_in=True)` lists
   every built-in outlet, the opt-in ones last; `get()` finds any of them by id; and `coverage()`
   lists them all, with a new `default` column that says which ones `search()` reads without being

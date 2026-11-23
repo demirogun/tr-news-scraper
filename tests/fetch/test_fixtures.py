@@ -19,6 +19,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 OUTLETS = (
     "a-haber",
     "aksam",
+    "aydinlik",
     "cumhuriyet",
     "euronews-tr",
     "milliyet",
