@@ -219,3 +219,31 @@ def test_an_entry_with_no_date_after_it_gets_the_ranges_last_month() -> None:
         Month(2023, 2),
         Month(2023, 2),
     ]
+
+
+# K8. Kısa Dalga's full files hold 40,000 entries, about 13 MB. Coverage tracing would roughly
+# double the time before 3.14, so the budget runs with coverage paused.
+@pytest.mark.no_cover
+def test_a_40000_entry_chunk_is_parsed_and_read_in_under_3_seconds() -> None:
+    import time
+
+    title = "Kahramanmaraş merkezli depremlerin ardından bölgedeki son durum ve yardım çalışmaları"
+    entries = "".join(
+        f"<url><loc>{BASE}/gundem/kahramanmaras-merkezli-depremlerin-ardindan-son-durum-{n}</loc>"
+        f"<lastmod>2023-02-{1 + n % 28:02d}T{n % 24:02d}:15:00+03:00</lastmod>"
+        "<news:news><news:publication><news:name>Örnek</news:name>"
+        "<news:language>tr</news:language></news:publication>"
+        f"<news:publication_date>2023-02-{1 + n % 28:02d}T{n % 24:02d}:00:00+03:00"
+        f"</news:publication_date><news:title>{title} {n}</news:title></news:news></url>"
+        for n in range(40_000)
+    )
+    content = f'<?xml version="1.0"?><urlset {NS} {NEWS_NS}>{entries}</urlset>'.encode()
+    assert len(content) > 12_000_000
+    news_titles = outlet(titles="news", entry_order="newest-first")
+    started = time.perf_counter()
+    urlset = parse_xml(content, max_bytes=64 * 1024**2, url=f"{BASE}/sitemap-news-1.xml")
+    chunk = read_chunk(urlset, news_titles, f"{BASE}/sitemap-news-1.xml", today=TODAY)
+    elapsed = time.perf_counter() - started
+    assert len(chunk.entries) == 40_000
+    assert chunk.date is not None
+    assert elapsed < 3, f"{elapsed:.2f} s"
