@@ -25,9 +25,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `ChunkedSitemap`, a third kind of outlet, for archives of numbered files in publication order
   instead of months. You declare which file holds the oldest articles and the order inside each
   file. A scan dates the files by their entries and finds a date range in a few requests, at most
-  ⌈log₂ n⌉ + 3 files before the range for n files. It keeps the articles between the last one
-  dated before the range and the last one dated inside it, so a later edit can't move an article
-  out. `coverage()` and the health check handle it; its check costs three requests.
+  ⌈log₂ n⌉ + 3 files before the range for n files. Archives aren't in exact publication order, so
+  the range's boundaries go where they best separate the dates on either side, and a few entries
+  out of place can't move them. Inside them, an article stays even when a later edit dates it
+  after the range; an older article edited during the range stays out. `coverage()` and the
+  health check handle it; its check costs three requests.
 
 ### Changed
 - `fetch()` reads what each page states about itself first: its JSON-LD article data, its `<h1>`

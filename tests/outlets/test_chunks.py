@@ -175,29 +175,61 @@ START, END = at(1, 0), at(1, 0, month=3)
     [
         # In age order. An entry is kept after the last one dated before the start, through the
         # last one dated before the end, whatever its own date says.
-        ([at(1, 0, 1), at(31, 9, 1), at(1, 9), at(10), at(28), at(1, 9, 3)], range(2, 5)),
+        ([at(1, 0, 1), at(31, 9, 1), at(1, 9), at(10), at(28), at(1, 9, 3)], [2, 3, 4]),
         # A later edit inside the range stays kept; one after the range does too.
-        ([at(31, 9, 1), at(2), at(20, 9, 3), at(5), at(5, 9, 3)], range(1, 4)),
+        ([at(31, 9, 1), at(2), at(20, 9, 3), at(5), at(5, 9, 3)], [1, 2, 3]),
         # An old article edited inside the range stays out: it's before the last entry dated
         # before the start.
-        ([at(10, 9, 1), at(15), at(30, 9, 1), at(3), at(4)], range(3, 5)),
+        ([at(10, 9, 1), at(15), at(20, 9, 1), at(25, 9, 1), at(30, 9, 1), at(3), at(4)], [5, 6]),
         # Undated entries are kept where their neighbours put them.
-        ([at(31, 9, 1), None, at(2), None, at(2, 9, 3), None], range(1, 3)),
+        ([at(31, 9, 1), None, at(2), None, at(2, 9, 3), None], [1, 2]),
         # Nothing dated before the start: from the first entry.
-        ([at(2), at(3), at(2, 9, 3)], range(0, 2)),
+        ([at(2), at(3), at(2, 9, 3)], [0, 1]),
         # Nothing before the end: nothing.
-        ([at(2, 9, 3), at(3, 9, 3)], range(0, 0)),
-        ([], range(0, 0)),
+        ([at(2, 9, 3), at(3, 9, 3)], []),
+        ([], []),
     ],
 )
-def test_entries_are_kept_by_position(dates: list[datetime | None], positions: range) -> None:
+def test_entries_are_kept_by_position(dates: list[datetime | None], positions: list[int]) -> None:
     assert kept(dates, START, END) == positions
+
+
+def test_a_few_entries_out_of_place_dont_move_a_boundary() -> None:
+    # Local disorder at the start (Evrensel lists some 31 January articles among 1 February's)
+    # and one entry dated years earlier deep inside the range.
+    dates: list[datetime | None] = [
+        *(at(day, 12, 1) for day in range(20, 31)),
+        at(1, 1),
+        at(31, 23, 1),
+        at(1, 2),
+        datetime(2020, 10, 15, tzinfo=ISTANBUL),
+        *(at(day) for day in range(2, 28)),
+        *(at(day, 12, 3) for day in range(1, 10)),
+    ]
+    positions = kept(dates, START, END)
+    assert positions == [11, *range(13, 14), *range(15, 41)]
+    assert all(dates[p] is not None and START <= dates[p] < END for p in positions)  # type: ignore[operator]
+
+
+def test_an_article_dated_inside_the_range_just_after_the_end_boundary_stays() -> None:
+    # Listed among the first articles after the range, but dated inside it.
+    dates: list[datetime | None] = [
+        at(31, 9, 1),
+        *(at(day) for day in range(1, 28)),
+        at(1, 1, 3),
+        at(1, 2, 3),
+        at(28, 23),
+        *(at(day, 12, 3) for day in range(2, 20)),
+    ]
+    positions = kept(dates, START, END)
+    assert positions[-1] == 30
+    assert len(positions) == 28
 
 
 def test_a_kept_entrys_month_is_the_earliest_date_at_or_after_it_within_the_range() -> None:
     dates = [at(31, 9, 1), at(2), at(20, 9, 3), at(5), at(25), None, at(1, 9, 3), at(3, 9, 3)]
     positions = kept(dates, at(1, 0), at(1, 0, month=4))
-    assert positions == range(1, 8)
+    assert positions == [1, 2, 3, 4, 5, 6, 7]
     feb, mar = Month(2023, 2), Month(2023, 3)
     assert months_for(dates, positions, date(2023, 2, 1), date(2023, 4, 1)) == [
         feb,
@@ -210,12 +242,12 @@ def test_a_kept_entrys_month_is_the_earliest_date_at_or_after_it_within_the_rang
     ]
     # Bounds outside the range's months are brought back inside it.
     early = [at(20, 9, 1), at(25, 9, 1)]
-    assert months_for(early, range(0, 2), date(2023, 2, 1), date(2023, 3, 1)) == [feb, feb]
+    assert months_for(early, [0, 1], date(2023, 2, 1), date(2023, 3, 1)) == [feb, feb]
 
 
 def test_an_entry_with_no_date_after_it_gets_the_ranges_last_month() -> None:
     dates: list[datetime | None] = [at(2), None]
-    assert months_for(dates, range(0, 2), date(2023, 1, 1), date(2023, 3, 1)) == [
+    assert months_for(dates, [0, 1], date(2023, 1, 1), date(2023, 3, 1)) == [
         Month(2023, 2),
         Month(2023, 2),
     ]

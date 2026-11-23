@@ -93,33 +93,62 @@ def read_chunk(urlset: etree._Element, outlet: ChunkedSitemap, url: str, *, toda
     return Chunk(url, tuple(accepted), dates, total, dropped)
 
 
-def kept(dates: Sequence[datetime | None], start: datetime, end: datetime) -> range:
-    """Positions of the entries published in [start, end), in age order (K4): after the last
-    entry dated before start, through the last one dated before end.
+def kept(dates: Sequence[datetime | None], start: datetime, end: datetime) -> list[int]:
+    """Positions of the entries published in [start, end), in age order (K4).
 
-    Position decides, not an entry's own date: a later edit can't move an article out of the
-    range, and an old article edited inside the range stays out.
+    The range's block of positions begins at the cut that best separates the entries dated
+    before ``start`` (before it) from those dated on or after (after it), and ends at the same
+    kind of cut for ``end``, so a few entries out of place can't move a boundary. Then:
+
+    - an entry dated before ``start`` is out: it was published before the range;
+    - an entry dated inside the range is in, unless it comes before the block: then it's an
+      older article edited during the range;
+    - an undated entry, or one dated after the range (edited later), is in when it's inside the
+      block.
     """
-    first = stop = 0
+    first, stop = _cut(dates, start, latest=False), _cut(dates, end, latest=True)
+    return [
+        position
+        for position in range(first, len(dates))
+        if _kept(dates[position], position < stop, start, end)
+    ]
+
+
+def _kept(found: datetime | None, inside: bool, start: datetime, end: datetime) -> bool:
+    if found is None or found >= end:
+        return inside
+    return found >= start
+
+
+def _cut(dates: Sequence[datetime | None], target: datetime, *, latest: bool) -> int:
+    """The cut, right after a dated entry (or at 0), with the most entries dated before
+    ``target`` before it plus entries dated on or after it after it. Among equally good cuts,
+    the earliest or the ``latest``: the block takes in the stretch where a few entries are out
+    of place at either end."""
+    after = sum(1 for found in dates if found is not None and found >= target)
+    best, best_score, before = 0, after, 0
     for position, found in enumerate(dates):
         if found is None:
             continue
-        if found < start:
-            first = position + 1
-        if found < end:
-            stop = position + 1
-    return range(first, max(first, stop))
+        if found < target:
+            before += 1
+        else:
+            after -= 1
+        score = before + after
+        if score > best_score or (latest and score == best_score):
+            best, best_score = position + 1, score
+    return best
 
 
 def months_for(
-    dates: Sequence[datetime | None], positions: range, start: date, end: date
+    dates: Sequence[datetime | None], positions: Sequence[int], start: date, end: date
 ) -> list[Month]:
     """Each kept entry's month (K4): the month of the earliest date at or after its position,
     which bounds its publication from above, brought within the range's months."""
     first_month, last_month = Month.of(start), Month.of(end - timedelta(days=1))
     bounds: dict[int, datetime | None] = {}
     lowest: datetime | None = None
-    for position in range(len(dates) - 1, positions.start - 1, -1):
+    for position in range(len(dates) - 1, min(positions, default=len(dates)) - 1, -1):
         found = dates[position]
         if found is not None and (lowest is None or found < lowest):
             lowest = found
