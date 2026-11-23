@@ -129,6 +129,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 | Bloomberg HT | `bloomberg-ht` | chunked sitemap | 2010-09 | no | yes |
 | Diken | `diken` | chunked sitemap | 2013-12 | no | yes |
 | Evrensel | `evrensel` | chunked sitemap | 2011-02 | no | yes |
+| Haber Global | `haber-global` | monthly sitemap | 2019-02 | no | yes |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
 - **Euronews Türkçe:** Matched on URLs only: the titles in its sitemaps describe photos, not articles.
@@ -142,6 +143,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Bloomberg HT:** Numbered files of 1,000 articles each, back to September 2010. No headlines.
 - **Diken:** Numbered files of 1,000 articles each, the newest first, back to December 2013. No headlines.
 - **Evrensel:** Numbered files of 10,000 articles each, back to February 2011. No headlines.
+- **Haber Global:** Every month since February 2019, the busiest in two parts. No headlines.
 
 Every outlet's archive is allowed by its robots.txt. Where an archive has no headlines, articles
 are matched on their URLs; after `fetch()`, `text_matched` shows which keywords each text names.

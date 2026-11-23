@@ -25,6 +25,7 @@ OUTLETS = (
     "diken",
     "euronews-tr",
     "evrensel",
+    "haber-global",
     "milliyet",
     "sozcu",
     "star",

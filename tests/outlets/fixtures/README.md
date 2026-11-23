@@ -69,3 +69,6 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `evrensel/chunk-0046.xml` | https://www.evrensel.net/sitemap/haber/46.xml |
 | `evrensel/chunk-0047.xml` | https://www.evrensel.net/sitemap/haber/47.xml |
 | `evrensel/chunk-0062.xml` | https://www.evrensel.net/sitemap/haber/62.xml |
+| `haber-global/index.xml` | https://haberglobal.com/sitemap.xml |
+| `haber-global/2023-02-1.xml` | https://haberglobal.com/sitemap-articles-2023-02.xml |
+| `haber-global/2023-02-2.xml` | https://haberglobal.com/sitemap-articles-2023-02-2.xml |

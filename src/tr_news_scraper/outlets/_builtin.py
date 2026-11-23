@@ -134,6 +134,16 @@ EVRENSEL = ChunkedSitemap(
 )
 
 
+HABER_GLOBAL = MonthlySitemap(
+    id="haber-global",
+    name="Haber Global",
+    index="https://haberglobal.com/sitemap.xml",
+    month_file=r"/sitemap-articles-(?P<year>\d{4})-(?P<month>\d{2})(?:-\d+)?\.xml$",
+    earliest=Month(2019, 2),
+    notes="Every month since February 2019, the busiest in two parts. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -170,6 +180,7 @@ BUILTIN: tuple[Outlet, ...] = (
     BLOOMBERG_HT,
     DIKEN,
     EVRENSEL,
+    HABER_GLOBAL,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()
