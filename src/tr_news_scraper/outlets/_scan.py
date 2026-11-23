@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from dataclasses import replace
 from datetime import date, timedelta
 
 from lxml import etree
@@ -48,6 +49,7 @@ from tr_news_scraper.outlets._sitemaps import (
     MonthFile,
     Read,
     SitemapError,
+    article_id,
     listed_months,
     plan_months,
     read_month_file,
@@ -130,6 +132,8 @@ class Scan:
         self._started = False
         self._attempts = 0
         self._successes = 0
+        self._files: dict[str, MonthFile | Exception] = {}
+        """Every sitemap file this scan read, by URL: each is requested once (O3b)."""
 
     def __iter__(self) -> Iterator[Candidate]:
         if self._started:
@@ -160,48 +164,115 @@ class Scan:
         for step in plan_months(listed, self._start, self._end):
             if isinstance(step, Gap):
                 self.gaps.append(step)
-                continue
-            yield from self._month(outlet, step)
+            elif outlet.grouping == "last-edit":
+                yield from self._edited_month(outlet, step, listed)
+            else:
+                candidates, complete = self._month_files(outlet, step)
+                yield from candidates
+                if complete:
+                    self.months.append(step.month)
 
-    def _month(self, outlet: MonthlySitemap, step: Read) -> Iterator[Candidate]:
-        """Every file the month lists, in index order, each URL once (O3a). The month counts
-        as read only when all its files were."""
-        seen: set[str] = set()
+    def _month_files(self, outlet: MonthlySitemap, step: Read) -> tuple[list[Candidate], bool]:
+        """Every file the month lists, in index order, each URL once (O3a), and whether all of
+        them were read; a file that fails is a gap naming it."""
+        kept: dict[str, Candidate] = {}
         complete = True
         for number, url in enumerate(step.urls, start=1):
-            part = "the file" if len(step.urls) == 1 else f"file {number} of {len(step.urls)}"
-            found = self._read_file(outlet, step.month, url, f"{part} for {step.month}")
-            if found is None:
+            found = self._load(outlet, step.month, url)
+            if isinstance(found, Exception):
+                part = "the file" if len(step.urls) == 1 else f"file {number} of {len(step.urls)}"
+                self._fail(found, f"{part} for {step.month}", month=step.month, url=url)
                 complete = False
                 continue
             for candidate in found.candidates:
-                if candidate.url not in seen:
-                    seen.add(candidate.url)
-                    yield candidate
-        if complete:
-            self.months.append(step.month)
+                kept.setdefault(candidate.url, candidate)
+        return list(kept.values()), complete
 
-    def _read_file(
-        self, outlet: MonthlySitemap, month: Month, url: str, what: str
-    ) -> MonthFile | None:
-        """One sitemap file's candidates, or ``None`` after recording why it couldn't be read."""
+    def _edited_month(
+        self, outlet: MonthlySitemap, step: Read, listed: Mapping[Month, Sequence[str]]
+    ) -> Iterator[Candidate]:
+        """Month M of an archive grouped by last edit (O3b): M's own entries whose article id is
+        above the highest in M-1's files, then the entries of M+1's files whose id is in that
+        span, up to the highest id in M's files. An entry without an id counts only in its own
+        month's file."""
+        month = step.month
+        own, complete = self._month_files(outlet, step)
+        if not own:
+            return
+        low = None
+        before = self._neighbour(outlet, month.previous(), listed)
+        if isinstance(before, Exception):
+            self._fail(
+                before,
+                f"the file for {month.previous()}",
+                month=month,
+                url=_first_file(listed, month.previous()),
+                so=f"{month} may include older articles last edited then",
+            )
+            complete = False
+        elif before is not None:
+            low = _highest_id(outlet, before)
+        kept = [c for c in own if _in_span(article_id(outlet, c.url), low, None, missing=True)]
+        after = self._neighbour(outlet, month.next(), listed)
+        if isinstance(after, Exception):
+            self._fail(
+                after,
+                f"the file for {month.next()}",
+                month=month,
+                url=_first_file(listed, month.next()),
+                so=f"articles published in {month} and edited later may be missing",
+            )
+            complete = False
+        elif after is not None:
+            high = _highest_id(outlet, own)
+            seen = {c.url for c in kept}
+            kept += [
+                replace(c, month=month)
+                for c in after
+                if c.url not in seen and _in_span(article_id(outlet, c.url), low, high)
+            ]
+        yield from kept
+        if complete:
+            self.months.append(month)
+
+    def _neighbour(
+        self, outlet: MonthlySitemap, month: Month, listed: Mapping[Month, Sequence[str]]
+    ) -> list[Candidate] | Exception | None:
+        """A neighbouring month's entries; the first error if one of its files failed; ``None``
+        when the index doesn't list the month."""
+        if month not in listed:
+            return None
+        candidates: list[Candidate] = []
+        for url in listed[month]:
+            found = self._load(outlet, month, url)
+            if isinstance(found, Exception):
+                return found
+            candidates += found.candidates
+        return candidates
+
+    def _load(self, outlet: MonthlySitemap, month: Month, url: str) -> MonthFile | Exception:
+        """One sitemap file, read once per scan: its candidates, or what stopped it."""
+        if url in self._files:
+            return self._files[url]
         self._attempts += 1
+        found: MonthFile | Exception
         try:
             response = self._get(url, month_ttl(month, self._today), XML_ACCEPT)
             found = read_month_file(response.xml(), outlet, month, url)
         except READ_ERRORS as error:
-            self._fail(error, what, month=month, url=url)
-            return None
-        self._successes += 1
-        self.dropped += found.dropped
-        logger.debug(
-            "%s: %s has %d entries, kept %d, dropped %d",
-            outlet.name,
-            url,
-            found.entries,
-            len(found.candidates),
-            found.dropped,
-        )
+            found = error
+        else:
+            self._successes += 1
+            self.dropped += found.dropped
+            logger.debug(
+                "%s: %s has %d entries, kept %d, dropped %d",
+                outlet.name,
+                url,
+                found.entries,
+                len(found.candidates),
+                found.dropped,
+            )
+        self._files[url] = found
         return found
 
     def _site_search(self, outlet: SiteSearch) -> Iterator[Candidate]:
@@ -276,15 +347,17 @@ class Scan:
         month: Month | None = None,
         keyword: str | None = None,
         url: str | None = None,
+        so: str | None = None,
     ) -> None:
         reason: GapReason = "failed"
         if isinstance(error, RobotsDisallowed):
             reason = "robots"
         elif isinstance(error, Blocked):
             reason = "blocked"
+        detail = f"{what} couldn't be read: {describe(error)}"
         gap = Gap(
             reason,
-            f"{what} couldn't be read: {describe(error)}",
+            detail if so is None else f"{detail}, so {so}",
             month=month,
             keyword=keyword,
             url=url,
@@ -312,6 +385,27 @@ class Scan:
                 self.outlet.name,
                 self.dropped,
             )
+
+
+def _first_file(listed: Mapping[Month, Sequence[str]], month: Month) -> str | None:
+    """The first file a month lists, to name in a gap."""
+    files = listed.get(month)
+    return files[0] if files else None
+
+
+def _highest_id(outlet: MonthlySitemap, candidates: Iterable[Candidate]) -> int | None:
+    ids = [found for c in candidates if (found := article_id(outlet, c.url)) is not None]
+    return max(ids, default=None)
+
+
+def _in_span(
+    found: int | None, low: int | None, high: int | None, *, missing: bool = False
+) -> bool:
+    """Whether an article id is above ``low`` and at most ``high``, each bound optional; an
+    entry without an id counts as ``missing`` says."""
+    if found is None:
+        return missing
+    return (low is None or found > low) and (high is None or found <= high)
 
 
 def describe(error: Exception) -> str:

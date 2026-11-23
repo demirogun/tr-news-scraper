@@ -158,6 +158,15 @@ def read_entries(
         )
 
 
+def article_id(outlet: MonthlySitemap, url: str) -> int | None:
+    """The number ``article_id`` finds in an article URL, or ``None``."""
+    if outlet.id_pattern is None:
+        return None
+    found = outlet.id_pattern.search(url)
+    text = found["id"] if found else None
+    return int(text) if text and text.isdigit() else None
+
+
 def _expect(root: etree._Element, name: str, description: str) -> str:
     """Check the root element's name and return the ``{namespace}`` prefix its children use."""
     qname = etree.QName(root)

@@ -11,6 +11,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Sitemaps with Google News tags: an entry's `news:publication_date` gives the article its `day`,
   so `search()` keeps it only when that day is in the range. With `MonthlySitemap(titles="news")`,
   the entry's `news:title` is its headline.
+- `MonthlySitemap(grouping="last-edit", article_id=...)`, for archives that file each article under
+  the month of its last edit, so an article edited a month later is only in the next month's file.
+  `article_id` is a regex whose group `id` is a number that grows with publication. For each
+  month, the scan also reads the month before and the month after, and keeps the articles whose
+  ids fall in the month's span: each file is read once, so n months cost n + 2 files.
 
 ### Changed
 - `fetch()` reads what each page states about itself first: its JSON-LD article data, its `<h1>`

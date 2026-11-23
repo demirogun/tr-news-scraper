@@ -265,3 +265,20 @@ def test_news_titles_that_disappear_are_a_problem(http: Http, requests_mock: Moc
     serve_sitemaps(requests_mock, LAST_MONTH)
     health = check(outlet, http, today=TODAY)
     assert health.problems == ("only 0 of 3 entries in the file for 2026-10 have a headline",)
+
+
+def test_article_ids_that_disappear_are_a_problem(http: Http, requests_mock: Mocker) -> None:
+    outlet = MonthlySitemap(
+        id="ornek",
+        name="Örnek",
+        index=INDEX,
+        month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
+        grouping="last-edit",
+        article_id=r"/haber-(?P<id>\d+)$",
+    )
+    serve_sitemaps(requests_mock, LAST_MONTH)
+    assert check(outlet, http, today=TODAY).ok
+    many = [f"{BASE}/gundem/haber-{n}" for n in range(98)] + [f"{BASE}/kunye", f"{BASE}/iletisim"]
+    requests_mock.get(file_url(LAST_MONTH), text=urls(*many))
+    health = check(outlet, http, today=TODAY)
+    assert health.problems == ("only 98 of 100 entries in the file for 2026-10 give an article id",)

@@ -13,10 +13,17 @@ from tr_news_scraper._http import Http
 from tr_news_scraper.outlets._model import Month, MonthlySitemap, Outlet, SiteSearch
 from tr_news_scraper.outlets._scan import HTML_ACCEPT, READ_ERRORS, XML_ACCEPT, describe
 from tr_news_scraper.outlets._search import Page, page_url, parse_page
-from tr_news_scraper.outlets._sitemaps import MonthFile, listed_months, read_month_file
+from tr_news_scraper.outlets._sitemaps import (
+    MonthFile,
+    article_id,
+    listed_months,
+    read_month_file,
+)
 
 MAX_FILES = 3
 """Monthly sitemaps: the most of last month's files read, in index order, to find entries."""
+MIN_ID_PERCENT = 99
+"""Monthly sitemaps with ``article_id``: the share of entries whose URL must give one."""
 MIN_SEARCH_RESULTS = 10
 MAX_SEARCH_AGE_DAYS = 14
 
@@ -94,6 +101,13 @@ def _check_sitemaps(outlet: MonthlySitemap, http: Http, today: date) -> Health:
             f"only {titled} of {len(found.candidates)} entries in the file for "
             f"{last_month} have a headline"
         )
+    if outlet.id_pattern is not None:
+        with_id = sum(1 for c in found.candidates if article_id(outlet, c.url) is not None)
+        if with_id * 100 < MIN_ID_PERCENT * len(found.candidates):
+            problems.append(
+                f"only {with_id} of {len(found.candidates)} entries in the file for "
+                f"{last_month} give an article id"
+            )
     return Health(outlet.id, tuple(problems), oldest, newest, sample)
 
 
