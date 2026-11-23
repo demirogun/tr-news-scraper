@@ -6,7 +6,13 @@ are read only when named. A weekly live check (tests/live) confirms that every o
 
 from __future__ import annotations
 
-from tr_news_scraper.outlets._model import Month, MonthlySitemap, Outlet, SiteSearch
+from tr_news_scraper.outlets._model import (
+    ChunkedSitemap,
+    Month,
+    MonthlySitemap,
+    Outlet,
+    SiteSearch,
+)
 
 CUMHURIYET = MonthlySitemap(
     id="cumhuriyet",
@@ -89,6 +95,18 @@ AYDINLIK = MonthlySitemap(
 )
 
 
+BLOOMBERG_HT = ChunkedSitemap(
+    id="bloomberg-ht",
+    name="Bloomberg HT",
+    index="https://www.bloomberght.com/sitemap.xml",
+    chunk_file=r"/sitemap_news_(?P<n>\d+)\.xml$",
+    chunk_order="oldest-first",
+    entry_order="newest-first",
+    earliest=Month(2010, 9),
+    notes="Numbered files of 1,000 articles each, back to September 2010. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -122,6 +140,7 @@ BUILTIN: tuple[Outlet, ...] = (
     MILLIYET,
     A_HABER,
     AYDINLIK,
+    BLOOMBERG_HT,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()

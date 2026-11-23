@@ -32,6 +32,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.aydinlik.com.tr/haber/unsal-ban-ve-ailesi-hakkinda-tutuklama-karari-367827",
         "https://www.aydinlik.com.tr/haber/istiklal-ve-yeni-emperyalizmin-cikis-yollari-364719",
     ),
+    (
+        "bloomberg-ht",
+        Month(2023, 2),
+        36,
+        "https://www.bloomberght.com/resmi-gazete-de-bugun-01022023-2324380",
+        "https://www.bloomberght.com/musk-chatgpt-ye-rakip-olmaya-hazirlaniyor-2326069",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

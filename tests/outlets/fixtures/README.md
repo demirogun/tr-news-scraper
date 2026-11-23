@@ -51,3 +51,9 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `a-haber/2023-02.xml` | https://www.ahaber.com.tr/sitemaparchives/post/2023-2.xml |
 | `aydinlik/index.xml` | https://www.aydinlik.com.tr/sitemap/index |
 | `aydinlik/2023-02.xml` | https://www.aydinlik.com.tr/sitemap/2023/2 |
+| `bloomberg-ht/index.xml` | https://www.bloomberght.com/sitemap.xml |
+| `bloomberg-ht/chunk-0001.xml` | https://www.bloomberght.com/sitemap_news_0.xml |
+| `bloomberg-ht/chunk-0184.xml` | https://www.bloomberght.com/sitemap_news_183.xml |
+| `bloomberg-ht/chunk-0185.xml` | https://www.bloomberght.com/sitemap_news_184.xml |
+| `bloomberg-ht/chunk-0186.xml` | https://www.bloomberght.com/sitemap_news_185.xml |
+| `bloomberg-ht/chunk-0231.xml` | https://www.bloomberght.com/sitemap_news_230.xml |

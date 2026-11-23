@@ -108,6 +108,12 @@ EXPECTED = [
         None,
         datetime(2023, 2, 17, 0, 34, tzinfo=ISTANBUL),
     ),
+    (
+        "bloomberg-ht",
+        "Afet bölgesinde Deprem Suçları Soruşturma Büroları kurulacak",
+        "Bloomberght",
+        datetime(2023, 2, 11, 13, 50, 32, tzinfo=ISTANBUL),
+    ),
 ]
 # The pages whose lead only structured data brings back.
 LEAD_FIRST = {"aksam", "cumhuriyet", "euronews-tr", "milliyet", "sozcu", "star", "trt-haber"}

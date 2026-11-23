@@ -20,6 +20,7 @@ OUTLETS = (
     "a-haber",
     "aksam",
     "aydinlik",
+    "bloomberg-ht",
     "cumhuriyet",
     "euronews-tr",
     "milliyet",
