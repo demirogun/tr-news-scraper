@@ -174,6 +174,7 @@ are matched on their URLs; after `fetch()`, `text_matched` shows which keywords 
 
 `coverage()` lists the same without a request, and `coverage(check=True)` checks each archive now.
 A weekly check on GitHub reads every outlet's real archive and opens an issue when one breaks.
+The sites that refuse GitHub's servers (see Limits) are checked from Türkiye before each release.
 
 `search()` reads the outlets marked "yes" under Default. Sputnik Türkiye, funded by the Russian
 state, is opt-in: it's read only when you name it, alongside the others or alone.
@@ -262,6 +263,10 @@ This section explains how the tool is meant to be used. It isn't legal advice.
 ## Limits
 
 - Most sitemap archives date articles only to the month until `fetch()` reads each page.
+- Some sites refuse requests from some networks, with HTTP 403. On 2026-11-24, Aydınlık, Haber
+  Global, Odatv, Özgür Kocaeli and Türkgün refused GitHub's servers, which are outside Türkiye,
+  while they answered a network in Türkiye. Cloud servers, such as a hosted notebook's, may be
+  refused too. The report names each refusal, and tr-news-scraper doesn't try to get around it.
 - Search matches URLs and headlines, so an article that names a keyword only in its text isn't
   found. Synonyms aren't added: search for `heyelan` and `toprak kayma` together. The CHANGELOG
   lists the other known limits.

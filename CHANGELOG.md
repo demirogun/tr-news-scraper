@@ -15,7 +15,9 @@ them. `fetch()` also reads pages more faithfully, from their structured data fir
 
 ### Added
 - New built-in outlets, each checked live against its robots.txt and its archive before it
-  was added. All but one are read by default:
+  was added. Aydınlık, Haber Global, Odatv, Özgür Kocaeli and Türkgün refuse some networks, such
+  as GitHub's servers, with HTTP 403; the report names such a refusal. All but one are read by
+  default:
   - **A Haber** (`a-haber`): every month since March 2011.
   - **Aydınlık** (`aydinlik`): every month since April 2011.
   - **Bloomberg HT** (`bloomberg-ht`): back to September 2010.

@@ -40,7 +40,7 @@ jobs:
       - name: Run the live tests
         run: |
           set -o pipefail
-          uv run pytest -m live tests/live --no-cov -p no:cacheprovider -rfE 2>&1 | tee live.log
+          uv run pytest -m live tests/live --no-cov -p no:cacheprovider -rfEs 2>&1 | tee live.log
       # Only test names go to the issue, never text from the news sites.
       - name: Collect the names of failing tests
         id: collect

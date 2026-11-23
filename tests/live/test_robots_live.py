@@ -8,8 +8,11 @@ means an outlet changed its rules: the outlet has to change too.
 
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 import pytest
 
+from tests.live.networks import ON_GITHUB, hosts_refusing_github
 from tr_news_scraper._http import Http
 
 # URLs that tr-news-scraper reads, one per 1.0 outlet still built in (checked 2026-11-07) and an
@@ -131,7 +134,19 @@ def http() -> Http:
 @pytest.mark.live
 @pytest.mark.parametrize("url", ALLOWED.values(), ids=ALLOWED.keys())
 def test_robots_txt_allows_the_urls_we_read(http: Http, url: str) -> None:
+    if unread_on_github(http, url):
+        host = urlsplit(url).hostname
+        pytest.skip(f"{host} refuses GitHub's runners its robots.txt (tests/live/networks.py)")
     assert http._robots.allows(url)
+
+
+def unread_on_github(http: Http, url: str) -> bool:
+    """Whether the URL's site refuses GitHub's runners and its robots.txt couldn't be read here.
+    RFC 9309 then allows everything, so checking would prove nothing."""
+    if not (ON_GITHUB and urlsplit(url).hostname in hosts_refusing_github()):
+        return False
+    rules = http._robots._rules_for(url)
+    return rules.parser is None and rules.allow_all
 
 
 @pytest.mark.live
