@@ -22,7 +22,7 @@ from tr_news_scraper._extract import (
     from_json,
     to_json,
 )
-from tr_news_scraper._structured import read_page
+from tr_news_scraper._structured import alike, read_page
 from tr_news_scraper.matching import KeywordQuery
 from tr_news_scraper.outlets import get
 from tr_news_scraper.outlets._dates import ISTANBUL
@@ -91,6 +91,8 @@ EXPECTED = [
         datetime(2023, 3, 2, 23, 48, tzinfo=ISTANBUL),
     ),
 ]
+# The pages whose lead only structured data brings back.
+LEAD_FIRST = {"aksam", "cumhuriyet", "euronews-tr", "milliyet", "sozcu", "star", "trt-haber"}
 PARAGRAPHS = [
     "Kahramanmaraş merkezli depremlerin ardından bölgede arama ve kurtarma çalışmaları "
     "sürüyor, ekipler gece boyunca enkaz altındaki vatandaşlara ulaşmaya çalıştı.",
@@ -142,10 +144,14 @@ def test_each_outlets_page_yields_headline_byline_time_and_text(
     assert found.published is not None
     assert found.published.tzinfo is ISTANBUL
     assert found.text is not None
-    # Every one of these pages shows its lead, which trafilatura alone left out.
+    # Where the page shows its lead, the text has it: first when trafilatura alone left it out,
+    # as on every 1.0 outlet's page.
     lead = read_page(page(outlet)).lead
-    assert lead is not None
-    assert found.text.startswith(f"{lead}\n")
+    if outlet in LEAD_FIRST:
+        assert lead is not None
+        assert found.text.startswith(f"{lead}\n")
+    elif lead is not None:
+        assert lead in found.text or any(alike(lead, line) for line in found.text.split("\n"))
     words = found.text.lower().split()
     filler = [word.strip(".") for word in words if word.strip(".") in FILLER]
     assert len(words) >= 30

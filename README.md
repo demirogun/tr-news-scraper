@@ -115,15 +115,15 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 
 ## Outlets
 
-| Outlet | `id` | Archive | From | Headlines |
-|---|---|---|---|---|
-| Cumhuriyet | `cumhuriyet` | monthly sitemap | 1962-08 | no |
-| Euronews Türkçe | `euronews-tr` | monthly sitemap | 2010-01 | no |
-| TRT Haber | `trt-haber` | monthly sitemap | 2016-07 | no |
-| Star | `star` | monthly sitemap | 2012-09 | image titles |
-| Akşam | `aksam` | monthly sitemap | 2010-12 | no |
-| Sözcü | `sozcu` | monthly sitemap | 2023-12 | no |
-| Milliyet | `milliyet` | site search | — | search results |
+| Outlet | `id` | Archive | From | Headlines | Default |
+|---|---|---|---|---|---|
+| Cumhuriyet | `cumhuriyet` | monthly sitemap | 1962-08 | no | yes |
+| Euronews Türkçe | `euronews-tr` | monthly sitemap | 2010-01 | no | yes |
+| TRT Haber | `trt-haber` | monthly sitemap | 2016-07 | no | yes |
+| Star | `star` | monthly sitemap | 2012-09 | image titles | yes |
+| Akşam | `aksam` | monthly sitemap | 2010-12 | no | yes |
+| Sözcü | `sozcu` | monthly sitemap | 2023-12 | no | yes |
+| Milliyet | `milliyet` | site search | — | search results | yes |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
 - **Euronews Türkçe:** Matched on URLs only: the titles in its sitemaps describe photos, not articles.

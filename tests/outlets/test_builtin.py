@@ -86,7 +86,13 @@ def sitemap(outlet_id: str) -> MonthlySitemap:
 
 
 def test_the_built_in_outlets_come_in_a_fixed_order() -> None:
-    assert [outlet.id for outlet in builtin()] == [*SITEMAP_IDS, "milliyet"]
+    # 1.0's seven first, in 1.0's order, so existing tables keep it; then 1.1's, by id.
+    ids = [outlet.id for outlet in builtin()]
+    assert ids[:7] == [*SITEMAP_IDS, "milliyet"]
+    assert ids[7:] == sorted(ids[7:])
+    every = [outlet.id for outlet in builtin(include_opt_in=True)]
+    assert every[: len(ids)] == ids
+    assert len(set(every)) == len(every)
 
 
 def test_get_finds_an_outlet_by_id() -> None:
@@ -99,10 +105,10 @@ def test_get_names_the_valid_ids_for_an_unknown_one() -> None:
 
 
 def test_every_built_in_outlet_explains_its_coverage() -> None:
-    for outlet in builtin():
+    for outlet in builtin(include_opt_in=True):
         assert outlet.notes
-        expected = "site search" if outlet.id == "milliyet" else "monthly sitemap"
-        assert outlet.method == expected
+        expected = {"milliyet": "site search"}.get(outlet.id)
+        assert outlet.method == expected or outlet.method in {"monthly sitemap", "chunked sitemap"}
 
 
 @pytest.mark.parametrize(
