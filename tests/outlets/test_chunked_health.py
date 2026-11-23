@@ -79,7 +79,11 @@ def test_a_healthy_chunked_archive_costs_three_requests(http: Http, requests_moc
             entries(datetime(2026, 10, 1, tzinfo=ISTANBUL)),
             "its newest file's newest date is 2026-10-01, more than 14 days ago",
         ),
-        ({"entry_order": "oldest-first"}, None, "only 0 of 9 neighbouring entries"),
+        (
+            {"entry_order": "oldest-first"},
+            entries(RECENT, 40),
+            "its newest file's dates don't follow entry_order (oldest-first): only 0 of 9",
+        ),
         ({"titles": "news"}, None, "only 0 of 10 entries in its newest file have a headline"),
         (
             {},
@@ -162,3 +166,34 @@ def test_an_undated_oldest_file_gives_no_oldest_month(http: Http, requests_mock:
     health = check(outlet(), http, today=TODAY)
     assert health.ok, health.problems
     assert health.oldest is None
+
+
+def test_later_edits_dont_upset_the_order_check(http: Http, requests_mock: Mocker) -> None:
+    # A quarter of the entries edited later, out of place among their neighbours.
+    body = entries(RECENT, 80)
+    for k in range(0, 80, 4):
+        stamp = (RECENT - timedelta(hours=k)).isoformat()
+        body = body.replace(
+            f"<lastmod>{stamp}</lastmod>", f"<lastmod>{RECENT.isoformat()}</lastmod>", 1
+        )
+    serve(requests_mock, newest=body)
+    health = check(outlet(), http, today=TODAY)
+    assert health.ok, health.problems
+
+
+def test_a_newest_file_too_small_to_judge_its_order_isnt_judged(
+    http: Http, requests_mock: Mocker
+) -> None:
+    serve(requests_mock, newest=entries(RECENT, 12))
+    assert check(outlet(entry_order="oldest-first"), http, today=TODAY).ok
+
+
+def test_the_oldest_month_is_its_first_articles_not_its_median(
+    http: Http, requests_mock: Mocker
+) -> None:
+    # A big oldest file: its median is months after its first article.
+    big = entries(datetime(2009, 6, 1, tzinfo=ISTANBUL), 60, step=24 * 5)
+    serve(requests_mock, oldest=big)
+    health = check(outlet(earliest=Month(2008, 12)), http, today=TODAY)
+    assert health.ok, health.problems
+    assert health.oldest == Month(2008, 12)

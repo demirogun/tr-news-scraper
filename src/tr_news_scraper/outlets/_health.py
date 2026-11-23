@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from itertools import pairwise
+from statistics import median_low
 
 from tr_news_scraper._http import Http
 from tr_news_scraper.outlets._chunks import Chunk, listed_chunks, read_chunk
@@ -33,9 +34,13 @@ MAX_FILES = 3
 """Monthly sitemaps: the most of last month's files read, in index order, to find entries."""
 MIN_ID_PERCENT = 99
 """Monthly sitemaps with ``article_id``: the share of entries whose URL must give one."""
+ORDER_BLOCKS = 10
+"""Chunked sitemaps: the newest file's dated entries are split into this many blocks, in the
+declared order, to judge it."""
 MIN_IN_ORDER = 0.9
-"""Chunked sitemaps: the share of neighbouring dated entries that must follow
-``entry_order``."""
+"""The share of steps between neighbouring blocks whose median dates must follow
+``entry_order``. Medians shrug off the articles edited later, which on busy sites put a quarter of
+neighbouring entries out of order."""
 MIN_SEARCH_RESULTS = 10
 MAX_SEARCH_AGE_DAYS = 14
 
@@ -49,7 +54,7 @@ class Health:
     """What's wrong, one sentence each; empty when the outlet is healthy."""
     oldest: Month | None = None
     """Monthly sitemaps: the first month the index lists. Chunked sitemaps: the month of the
-    oldest file's date."""
+    oldest file's first article."""
     newest: Month | None = None
     """Monthly sitemaps: the last month the index lists. Chunked sitemaps: the month of the
     newest file's newest date."""
@@ -152,8 +157,8 @@ def _check_chunks(outlet: ChunkedSitemap, http: Http, today: date) -> Health:
     except READ_ERRORS as error:
         problems.append(f"its oldest file couldn't be read: {describe(error)}")
     else:
-        if oldest.date is not None:
-            oldest_month = Month.of(oldest.date.astimezone(ISTANBUL).date())
+        if oldest.oldest is not None:
+            oldest_month = Month.of(oldest.oldest.astimezone(ISTANBUL).date())
             if outlet.earliest is not None and oldest_month > outlet.earliest.next():
                 problems.append(
                     f"its oldest file is dated {oldest_month}, more than a month after the "
@@ -188,13 +193,16 @@ def _chunk_problems(outlet: ChunkedSitemap, newest: Chunk, today: date) -> list[
             f"more than {MAX_SEARCH_AGE_DAYS} days ago"
         )
     dated = [found for found in newest.dates if found is not None]
-    pairs = list(pairwise(dated))
-    in_order = sum(1 for earlier, later in pairs if earlier <= later)
-    if pairs and in_order < MIN_IN_ORDER * len(pairs):
-        problems.append(
-            f"only {in_order} of {len(pairs)} neighbouring entries in its newest file follow "
-            f"entry_order ({outlet.entry_order})"
-        )
+    if len(dated) >= 2 * ORDER_BLOCKS:
+        size = len(dated) // ORDER_BLOCKS
+        medians = [median_low(dated[i * size : (i + 1) * size]) for i in range(ORDER_BLOCKS)]
+        steps = ORDER_BLOCKS - 1
+        in_order = sum(1 for earlier, later in pairwise(medians) if earlier <= later)
+        if in_order < MIN_IN_ORDER * steps:
+            problems.append(
+                f"its newest file's dates don't follow entry_order ({outlet.entry_order}): only "
+                f"{in_order} of {steps} steps between blocks of its entries do"
+            )
     titled = sum(1 for entry in newest.entries if entry.title)
     if outlet.titles is not None and titled * 2 < len(newest.entries):
         problems.append(
