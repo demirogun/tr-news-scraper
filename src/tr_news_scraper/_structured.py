@@ -95,7 +95,7 @@ def read_page(html: str) -> PageFacts:
     titles = [text for text in (headline, og_title, *h1s) if text]
     body = root.find("body")
     lead = None
-    if description and body is not None and not any(_alike(description, t) for t in titles):
+    if description and body is not None and not any(alike(description, t) for t in titles):
         lead = _visible_lead(body, description)
     return PageFacts(
         article=bool(article),
@@ -138,9 +138,9 @@ def with_lead(text: str | None, lead: str | None) -> str | None:
     at its start, or as one of its paragraphs, word for word or 98% alike (F3d)."""
     if text is None or lead is None:
         return text
-    if lead in text or _alike(lead, text[: len(lead)]):
+    if lead in text or alike(lead, text[: len(lead)]):
         return text
-    if any(_alike(lead, paragraph) for paragraph in text.split("\n")):
+    if any(alike(lead, paragraph) for paragraph in text.split("\n")):
         return text
     return f"{lead}\n{text}"
 
@@ -289,7 +289,7 @@ def _visible_lead(body: lxml.html.HtmlElement, description: str) -> str | None:
         if len(raw) < shortest:
             continue
         text = line(raw)
-        if text and _alike(description, text) and _visible(element):
+        if text and alike(description, text) and _visible(element):
             return text
     return None
 
@@ -303,7 +303,7 @@ def _visible(element: lxml.html.HtmlElement) -> bool:
     return True
 
 
-def _alike(first: str, second: str) -> bool:
+def alike(first: str, second: str) -> bool:
     """Equal, or at least ``LEAD_SIMILARITY`` alike (difflib's ratio, checked cheaply first)."""
     if first == second:
         return True

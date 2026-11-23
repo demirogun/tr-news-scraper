@@ -7,7 +7,8 @@ headline and the dates. It replaces:
 - every text in a paragraph, list item, caption, quote, table cell or subheading, every other
   body text of three or more words, every long ``alt`` or ``title`` attribute, every
   description, and every JSON-LD body or description with filler words of the same length.
-  Equal texts get equal filler, so a lead that repeats the page's description still does.
+  Equal texts, and texts 98% alike, get equal filler, so a lead that repeats the page's
+  description still does.
   Texts of eight or more words include "deprem". Only letters make words, so dates and times
   stay, and so does text inside elements named for times, dates, authors or sources: that's
   metadata, not article text;
@@ -24,6 +25,7 @@ only the canonical link, and declares UTF-8. The input is a page saved as UTF-8 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import unicodedata
@@ -34,6 +36,7 @@ from typing import Any
 import lxml.html
 from lxml import etree
 
+from tr_news_scraper._structured import alike
 from tr_news_scraper.matching import fold, tr_lower
 
 FILLER = (
@@ -73,6 +76,7 @@ DESK_WORDS = frozenset(
     }
 )
 AGENCIES = frozenset({"aa", "iha", "dha", "anka", "afp", "ap", "dpa", "reuters", "sputnik", "bbc"})
+ADDRESS_WORDS = frozenset({"com", "net", "org", "tr", "www"})
 # The headline, times, and the JSON-LD scripts already handled keep their own text.
 KEPT_TAGS = frozenset({"h1", "time", "title", "script"})
 CONTENT_TAGS = frozenset(
@@ -96,7 +100,8 @@ _NAME_EDGES = " /,;|-–—·()<>"
 
 
 class Skeleton:
-    """Builds the skeleton of one page; ``seed`` keeps the filler deterministic."""
+    """Builds the skeleton of one page; ``seed`` counts the fillers made, keeping them
+    deterministic."""
 
     def __init__(self, authors: dict[str, str]) -> None:
         self.authors = dict(authors)
@@ -106,16 +111,18 @@ class Skeleton:
             self._add_spellings(real, fictional)
 
     def filler(self, words: int) -> str:
-        chosen = [FILLER[(self.seed + i) % len(FILLER)] for i in range(words)]
-        self.seed += words
+        """``words`` filler words, picked by hashing the seed and position: deterministic, and
+        unlike any other text's filler, so different texts can't pass for each other."""
+        chosen = [FILLER[_pick(self.seed, position)] for position in range(words)]
+        self.seed += 1
         if words >= KEYWORD_FROM:
             chosen[1] = KEYWORD
-        text = " ".join(chosen)
-        return f"{_TURKISH_UPPER.get(text[:1], text[:1].upper())}{text[1:]}."
+        return f"{capitalized(' '.join(chosen))}."
 
     def replace_long(self, text: str | None, minimum: int = MIN_WORDS) -> str | None:
         """Filler for a text of ``minimum`` or more words; anything shorter is kept. The same
-        text, with its spaces collapsed and NFC, always gets the same filler."""
+        text, with its spaces collapsed and NFC, always gets the same filler, and so does a
+        text 98% alike, as fetch's lead rule counts it."""
         if text is None:
             return None
         words = len(_WORDS.findall(text))
@@ -123,7 +130,8 @@ class Skeleton:
             return text
         key = unicodedata.normalize("NFC", " ".join(text.split()))
         if key not in self._fillers:
-            self._fillers[key] = self.filler(words)
+            twin = next((known for known in self._fillers if alike(known, key)), None)
+            self._fillers[key] = self.filler(words) if twin is None else self._fillers[twin]
         return self._fillers[key]
 
     def rename(self, text: str) -> str:
@@ -140,13 +148,16 @@ class Skeleton:
         self._add_spellings(person, known.get(fold(person)) or self._unused_name())
 
     def _add_spellings(self, real: str, fictional: str) -> None:
-        """Map ``real`` as written, in capitals, in title case and as a URL slug, unless a
-        spelling is mapped already."""
+        """Map ``real`` as written, in capitals, in title case, in lowercase, folded, as a URL
+        slug and as the usernames sites make of it, unless a spelling is mapped already."""
         variants = {
             real: _same_case(real, fictional),
             tr_upper(real): tr_upper(fictional),
             tr_title(real): tr_title(fictional),
+            tr_lower(real): tr_lower(fictional),
+            fold(real): fold(fictional),
             _slug(real): _slug(fictional),
+            **dict(zip(_usernames(real), _usernames(fictional), strict=True)),
         }
         for spelling, replacement in variants.items():
             if spelling:
@@ -261,6 +272,16 @@ class Skeleton:
                 element.set(attribute, self.rename(value))
 
 
+def capitalized(text: str) -> str:
+    """``text`` with its first letter a Turkish capital: ``"içerik"`` → ``"İçerik"``."""
+    return f"{_TURKISH_UPPER.get(text[:1], text[:1].upper())}{text[1:]}"
+
+
+def _pick(seed: int, position: int) -> int:
+    digest = hashlib.sha256(f"{seed}:{position}".encode()).digest()
+    return int.from_bytes(digest[:4], "big") % len(FILLER)
+
+
 def tr_upper(text: str) -> str:
     """Turkish capitals: ``"Şişli"`` → ``"ŞİŞLİ"``."""
     return "".join(_TURKISH_UPPER.get(letter, letter.upper()) for letter in text)
@@ -279,11 +300,22 @@ def _slug(name: str) -> str:
     return "-".join(fold(name).split())
 
 
+def _usernames(name: str) -> list[str]:
+    """Usernames sites make from a name: initial plus surname, and first name plus surname
+    run together or joined by a dot or an underscore. Empty for a one-word name."""
+    words = fold(name).split()
+    if len(words) < 2:
+        return []
+    first, last = words[0], words[-1]
+    return [f"{first[0]}{last}", f"{first}{last}", f"{first}.{last}", f"{first}_{last}"]
+
+
 def _is_desk(name: str) -> bool:
     """Whether a byline names a desk, an agency or an outlet rather than a person: one word,
-    a known agency, or a word like "haber" or "ajans"."""
+    a known agency, a word like "haber" or "ajans", or the pieces of an email address that
+    some extractors turn into words ("Cumartesi Com Tr")."""
     words = set(fold(name).split())
-    return len(words) < 2 or bool(words & AGENCIES) or bool(words & DESK_WORDS)
+    return len(words) < 2 or bool(words & (AGENCIES | DESK_WORDS | ADDRESS_WORDS))
 
 
 def _authors(data: Any) -> Iterator[str]:

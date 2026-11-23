@@ -13,7 +13,7 @@ from typing import Any
 import lxml.html
 import pytest
 
-from tr_news_scraper.matching import tr_lower
+from tr_news_scraper.matching import fold, tr_lower
 
 FIXTURES = Path(__file__).parent / "fixtures"
 OUTLETS = ("aksam", "cumhuriyet", "euronews-tr", "milliyet", "sozcu", "star", "trt-haber")
@@ -69,24 +69,35 @@ def test_a_skeleton_keeps_its_headline_and_declares_utf8(outlet: str) -> None:
 
 def test_filler_is_deterministic_and_names_deprem_in_long_texts() -> None:
     first, second = script.Skeleton({}), script.Skeleton({})
-    assert first.filler(9) == second.filler(9)
-    assert script.Skeleton({}).filler(9) == (
-        "Örnek deprem yer tutucu cümle paragraf sayfa satır kelime."
-    )
-    assert first.filler(3) == "Deneme içerik bölüm."
+    long = first.filler(9)
+    assert long == second.filler(9)
+    assert len(long.split()) == 9
+    assert long.endswith(".")
+    assert set(words(long)) <= ALLOWED
+    assert words(long)[1] == "deprem"
+    assert "deprem" not in words(first.filler(7))
+
+
+def test_fillers_of_different_texts_differ() -> None:
+    skeleton = script.Skeleton({})
+    fillers = [skeleton.filler(12) for _ in range(50)]
+    assert len(set(fillers)) == 50
 
 
 def test_filler_capitalizes_the_turkish_way() -> None:
-    skeleton = script.Skeleton({})
-    skeleton.seed = script.FILLER.index("içerik")
-    assert skeleton.filler(3) == "İçerik bölüm örnek."
+    assert script.capitalized("içerik bölüm") == "İçerik bölüm"
+    assert script.capitalized("ırmak") == "Irmak"
+    assert script.capitalized("örnek") == "Örnek"
 
 
 def test_short_texts_dates_and_times_are_kept() -> None:
     skeleton = script.Skeleton({})
     assert skeleton.replace_long("Haber Merkezi") == "Haber Merkezi"
     assert skeleton.replace_long("02.03.2023 23:48") == "02.03.2023 23:48"
-    assert skeleton.replace_long("Bu üç kelime") == "Örnek metin yer."
+    replaced = skeleton.replace_long("Bu üç kelime")
+    assert replaced is not None
+    assert len(replaced.split()) == 3
+    assert set(words(replaced)) <= ALLOWED
     assert skeleton.replace_long(None) is None
 
 
@@ -122,8 +133,10 @@ def test_malformed_json_ld_is_edited_in_place_not_dropped() -> None:
     skeleton = script.Skeleton({})
     malformed = '{"articleBody": "Gerçek metin burada var", "headline": "Başlık",}'
     edited = skeleton._json_ld_text(malformed)
-    assert edited.startswith('{"articleBody": "Örnek metin yer tutucu."')
-    assert edited.endswith('"headline": "Başlık",}')
+    body = re.match(r'\{"articleBody": "([^"]*)", "headline": "Başlık",\}$', edited)
+    assert body is not None
+    assert len(body.group(1).split()) == 4
+    assert set(words(body.group(1))) <= ALLOWED
 
 
 def test_an_author_needs_a_fictional_name() -> None:
@@ -238,3 +251,34 @@ def test_each_real_name_gets_its_own_fictional_name() -> None:
     first, second = (entry["name"] for entry in json_ld(root)["author"])
     assert first != second
     assert {first, second} <= set(script.FICTIONAL_NAMES)
+
+
+def test_a_byline_is_replaced_in_lowercase_folded_and_as_a_username_too() -> None:
+    extra = (
+        '<meta name="keywords" content="deprem,muhabir kişi,muhabir kisi">'
+        '<meta property="creators" content="mkisi">'
+        '<meta name="twitter:creator" content="@muhabir.kisi">'
+        '<link rel="canonical" href="https://www.ornek.com.tr/yazar/muhabir_kisi">'
+    )
+    page = lead_page(author={"@type": "Person", "name": "Muhabir Kişi"}).replace(
+        "<title>Başlık</title>", f"<title>Başlık</title>{extra}"
+    )
+    skeleton, _ = built(page)
+    assert "kisi" not in fold(skeleton)
+    assert "muhabir" not in fold(skeleton)
+
+
+@pytest.mark.parametrize("name", ["Cumartesi Com Tr", "Dış Haberler Servisi", "AA", "Reuters"])
+def test_addresses_desks_and_agencies_are_not_people(name: str) -> None:
+    assert script._is_desk(name)
+
+
+def test_a_surname_that_starts_like_a_desk_word_is_still_a_person() -> None:
+    assert not script._is_desk("Mehmet Haberal")
+
+
+def test_texts_98_percent_alike_get_equal_filler_too() -> None:
+    skeleton = script.Skeleton({})
+    shown = skeleton.replace_long(LEAD)
+    assert skeleton.replace_long(LEAD.replace("yeniden", "yeni den")) == shown
+    assert skeleton.replace_long("Bambaşka bir cümle burada duruyor ve hiç benzemiyor.") != shown
