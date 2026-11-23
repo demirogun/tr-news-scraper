@@ -18,7 +18,7 @@ from tr_news_scraper._table import DAY_DTYPE, SearchResult
 from tr_news_scraper._version import __version__
 from tr_news_scraper.errors import FetchFailed, HttpError
 from tr_news_scraper.matching import KeywordQuery
-from tr_news_scraper.outlets import Outlet
+from tr_news_scraper.outlets import Outlet, builtin
 from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._scan import describe
 
@@ -138,7 +138,7 @@ def _read(
     kind = page.headers.get("content-type", "").partition(";")[0].strip().lower()
     if kind and kind not in HTML_TYPES:
         return Fetched(Extracted(error=f"it isn't a web page ({kind})"), page.fetched_at)
-    extracted = extract(page.text(), page.url)
+    extracted = extract(page.text(), page.url, outlet.name)
     if extracted.error is None:
         http.store_record(name, to_json(extracted, page.fetched_at))
     return Fetched(extracted, page.fetched_at)
@@ -299,7 +299,13 @@ def _inputs(
     chosen = resolve_outlets(outlets)
     unknown = sorted({str(outlet) for outlet in articles["outlet"]} - {o.id for o in chosen})
     if unknown:
-        raise ValueError(f"no outlet definition for {', '.join(unknown)}; pass it in outlets")
+        opt_in = {outlet.id for outlet in builtin(include_opt_in=True)} - {o.id for o in builtin()}
+        hint = (
+            "; it's an opt-in built-in outlet: pass outlets=builtin(include_opt_in=True)"
+            if set(unknown) <= opt_in
+            else "; pass it in outlets"
+        )
+        raise ValueError(f"no outlet definition for {', '.join(unknown)}{hint}")
     words = () if keywords is None else KeywordQuery(parse_keywords(keywords)).keywords
     return _typed(articles), words, first, after, chosen
 

@@ -92,3 +92,26 @@ def test_search_results_outside_the_range_are_trimmed() -> None:
     assert [row.day for row in run.rows] == [date(2023, 2, 10), date(2023, 2, 28)]
     assert [row.month for row in run.rows] == [FEB, FEB]
     assert (run.candidates, run.trimmed) == (4, 2)
+
+
+def test_a_sitemap_entry_with_a_publication_day_is_kept_by_that_day() -> None:
+    # Google News tags give the day, which settles it whatever the last edit says.
+    edited = datetime(2023, 2, 20, 10, 0, tzinfo=ISTANBUL)
+    inside = Candidate(
+        "cumhuriyet",
+        "https://www.cumhuriyet.com.tr/a/deprem-1",
+        FEB,
+        day=date(2023, 2, 15),
+        lastmod=edited,
+    )
+    before = Candidate(
+        "cumhuriyet",
+        "https://www.cumhuriyet.com.tr/a/deprem-2",
+        FEB,
+        day=date(2023, 2, 9),
+        lastmod=edited,
+    )
+    run = OutletRun(get("cumhuriyet"))
+    collect(run, [inside, before], QUERY, START, END)
+    assert [row.day for row in run.rows] == [date(2023, 2, 15)]
+    assert (run.candidates, run.trimmed) == (2, 1)

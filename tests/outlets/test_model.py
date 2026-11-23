@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from tr_news_scraper.outlets import Candidate, Month, MonthlySitemap, SiteSearch
+from tr_news_scraper.outlets import Candidate, ChunkedSitemap, Month, MonthlySitemap, SiteSearch
 
 SITEMAP: dict[str, Any] = {
     "id": "ornek-gazete",
@@ -87,11 +87,41 @@ def test_month_file_must_be_a_regex_with_year_and_month_groups() -> None:
 
 
 def test_titles_and_earliest_are_checked() -> None:
-    with pytest.raises(ValueError, match="titles must be"):
-        sitemap(titles="news")
+    with pytest.raises(ValueError, match="titles must be None, 'image' or 'news'"):
+        sitemap(titles="caption")
     with pytest.raises(ValueError, match="earliest must be a Month"):
         sitemap(earliest="2010-12")
     assert sitemap(earliest=Month(2010, 12), titles="image").earliest == Month(2010, 12)
+    assert sitemap(titles="news").titles == "news"
+
+
+def test_a_sitemap_is_grouped_by_publication_unless_it_says_otherwise() -> None:
+    outlet = sitemap()
+    assert (outlet.grouping, outlet.article_id, outlet.id_pattern) == ("publication", None, None)
+
+
+def test_grouping_by_last_edit_needs_an_article_id_pattern() -> None:
+    with pytest.raises(ValueError, match="grouping='last-edit' needs article_id"):
+        sitemap(grouping="last-edit")
+    outlet = sitemap(grouping="last-edit", article_id=r"-(?P<id>\d+)$")
+    assert outlet.id_pattern is not None
+    found = outlet.id_pattern.search("https://www.example.com.tr/gundem/deprem-1234")
+    assert found is not None
+    assert found["id"] == "1234"
+
+
+@pytest.mark.parametrize("bad", ["by-day", "", None])
+def test_grouping_is_checked(bad: Any) -> None:
+    with pytest.raises(ValueError, match="grouping must be 'publication' or 'last-edit'"):
+        sitemap(grouping=bad)
+
+
+def test_article_id_must_be_a_regex_with_an_id_group() -> None:
+    with pytest.raises(ValueError, match="article_id isn't a valid regular expression"):
+        sitemap(article_id="-(")
+    with pytest.raises(ValueError, match="article_id needs the named group 'id'"):
+        sitemap(article_id=r"-(\d+)$")
+    assert sitemap(article_id=r"-(?P<id>\d+)$").grouping == "publication"
 
 
 @pytest.mark.parametrize("bad_hosts", ["static.example.com.tr", ["ok.example", ""], [None]])
@@ -163,3 +193,67 @@ def test_a_candidate_needs_only_an_outlet_url_and_month() -> None:
         None,
         "",
     )
+
+
+CHUNKED: dict[str, Any] = {
+    "id": "ornek-arsiv",
+    "name": "Örnek Arşiv",
+    "index": "https://www.example.com.tr/story-sitemap",
+    "chunk_file": r"/story-sitemap/(?P<n>\d*)$",
+    "chunk_order": "oldest-first",
+    "entry_order": "newest-first",
+}
+
+
+def chunked(**changes: Any) -> ChunkedSitemap:
+    return ChunkedSitemap(**(CHUNKED | changes))
+
+
+def test_a_chunked_sitemap_knows_its_hosts_method_and_pattern() -> None:
+    outlet = chunked(extra_hosts={"Static.Example.com.tr"})
+    assert outlet.hosts == {"www.example.com.tr", "static.example.com.tr"}
+    assert outlet.method == "chunked sitemap"
+    found = outlet.pattern.search("https://www.example.com.tr/story-sitemap/12")
+    assert found is not None
+    assert found["n"] == "12"
+    assert (outlet.titles, outlet.earliest, outlet.notes) == (None, None, "")
+
+
+def test_chunk_file_must_be_a_regex_with_a_group_n() -> None:
+    with pytest.raises(ValueError, match="chunk_file isn't a valid regular expression"):
+        chunked(chunk_file="story-(")
+    with pytest.raises(ValueError, match="chunk_file needs the named group 'n'"):
+        chunked(chunk_file=r"/story-sitemap/(\d+)$")
+
+
+@pytest.mark.parametrize("field", ["chunk_order", "entry_order"])
+@pytest.mark.parametrize("bad", ["by-date", "", None])
+def test_both_orders_are_checked(field: str, bad: Any) -> None:
+    with pytest.raises(ValueError, match=f"{field} must be 'oldest-first' or 'newest-first'"):
+        chunked(**{field: bad})
+
+
+def test_a_chunked_sitemaps_other_fields_are_checked_like_a_monthly_ones() -> None:
+    with pytest.raises(ValueError, match="titles must be None, 'image' or 'news'"):
+        chunked(titles="caption")
+    with pytest.raises(ValueError, match="earliest must be a Month"):
+        chunked(earliest="2008-12")
+    with pytest.raises(ValueError, match="index must be an https URL"):
+        chunked(index="http://www.example.com.tr/story-sitemap")
+    with pytest.raises(ValueError, match="id must be lowercase kebab-case"):
+        chunked(id="NTV")
+    with pytest.raises(ValueError, match="extra_hosts"):
+        chunked(extra_hosts="static.example.com.tr")
+    outlet = chunked(titles="news", earliest=Month(2008, 12), chunk_order="newest-first")
+    assert (outlet.titles, outlet.earliest, outlet.chunk_order) == (
+        "news",
+        Month(2008, 12),
+        "newest-first",
+    )
+
+
+def test_a_chunked_sitemap_accepts_https_urls_on_its_hosts() -> None:
+    outlet = chunked()
+    assert outlet.accepts("https://www.example.com.tr/gundem/deprem-1")
+    assert not outlet.accepts("http://www.example.com.tr/gundem/deprem-1")
+    assert not outlet.accepts("https://other.example/gundem/deprem-1")

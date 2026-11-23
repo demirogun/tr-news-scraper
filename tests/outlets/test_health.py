@@ -216,3 +216,69 @@ def test_a_search_page_that_fails_is_a_problem(http: Http, requests_mock: Mocker
     assert check(SEARCH, http, today=TODAY).problems == (
         "page 1 couldn't be read: the site refused it with HTTP 403",
     )
+
+
+def serve_parts(requests_mock: Mocker, *bodies: str) -> list[str]:
+    """Last month in several files, served with ``bodies``; returns their URLs."""
+    parts = [f"{BASE}/sitemaps/posts-{LAST_MONTH}-{n}.xml" for n in range(len(bodies))]
+    entries = "".join(f"<sitemap><loc>{loc}</loc></sitemap>" for loc in parts)
+    index = f'<?xml version="1.0"?><sitemapindex {NS}>{entries}</sitemapindex>'
+    requests_mock.get(INDEX, text=index)
+    for loc, body in zip(parts, bodies, strict=True):
+        requests_mock.get(loc, text=body)
+    return parts
+
+
+PARTS = MonthlySitemap(
+    id="ornek",
+    name="Örnek",
+    index=INDEX,
+    month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{2})-\d+\.xml$",
+)
+
+
+def test_an_empty_first_file_sends_the_check_to_the_next(http: Http, requests_mock: Mocker) -> None:
+    parts = serve_parts(requests_mock, urls(), urls(*ARTICLES), urls(*ARTICLES))
+    health = check(PARTS, http, today=TODAY)
+    assert health.ok, health.problems
+    assert health.sample == 3
+    archive = [r.url for r in requests_mock.request_history if not r.url.endswith("robots.txt")]
+    assert archive == [INDEX, parts[0], parts[1]]
+
+
+def test_at_most_three_empty_files_are_read(http: Http, requests_mock: Mocker) -> None:
+    parts = serve_parts(requests_mock, urls(), urls(), urls(), urls(*ARTICLES))
+    health = check(PARTS, http, today=TODAY)
+    assert health.problems == ("the first 3 files for 2026-10 are empty",)
+    archive = [r.url for r in requests_mock.request_history if not r.url.endswith("robots.txt")]
+    assert archive == [INDEX, *parts[:3]]
+
+
+def test_news_titles_that_disappear_are_a_problem(http: Http, requests_mock: Mocker) -> None:
+    outlet = MonthlySitemap(
+        id="ornek",
+        name="Örnek",
+        index=INDEX,
+        month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
+        titles="news",
+    )
+    serve_sitemaps(requests_mock, LAST_MONTH)
+    health = check(outlet, http, today=TODAY)
+    assert health.problems == ("only 0 of 3 entries in the file for 2026-10 have a headline",)
+
+
+def test_article_ids_that_disappear_are_a_problem(http: Http, requests_mock: Mocker) -> None:
+    outlet = MonthlySitemap(
+        id="ornek",
+        name="Örnek",
+        index=INDEX,
+        month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
+        grouping="last-edit",
+        article_id=r"/haber-(?P<id>\d+)$",
+    )
+    serve_sitemaps(requests_mock, LAST_MONTH)
+    assert check(outlet, http, today=TODAY).ok
+    many = [f"{BASE}/gundem/haber-{n}" for n in range(98)] + [f"{BASE}/kunye", f"{BASE}/iletisim"]
+    requests_mock.get(file_url(LAST_MONTH), text=urls(*many))
+    health = check(outlet, http, today=TODAY)
+    assert health.problems == ("only 98 of 100 entries in the file for 2026-10 give an article id",)

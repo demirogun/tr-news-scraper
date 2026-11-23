@@ -55,7 +55,7 @@ ROBOTS_WARNING = (
     "warning: --ignore-robots-txt: robots.txt won't be checked. Use it only with each site's "
     "permission; you are responsible for these requests."
 )
-COVERAGE_SHOWN = ("outlet", "name", "method", "earliest", "headlines")
+COVERAGE_SHOWN = ("outlet", "name", "method", "earliest", "headlines", "default")
 HEALTH_SHOWN = ("ok", "oldest", "newest", "sample")
 SHOWN_INFO = frozenset({"tr_news_scraper.search", "tr_news_scraper.fetch"})
 """The loggers whose INFO lines show without -v: one line per outlet, and fetch's progress."""
@@ -220,7 +220,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="where the articles go: NAME.csv, NAME.jsonl or NAME.parquet",
     )
     find.add_argument(
-        "--outlets", metavar="ID,...", help="built-in outlet ids, comma-separated; all by default"
+        "--outlets",
+        metavar="ID,...",
+        help="built-in outlet ids, comma-separated, opt-in ones included; the defaults otherwise",
     )
     find.add_argument(
         "--fetch",
@@ -548,7 +550,8 @@ def _read(
     **scope: Any,
 ) -> FetchResult | None:
     """Fetch every article, or ``None`` after saying how to continue if stopped (C9)."""
-    tracker = Tracker(total, console, {outlet.id: outlet.name for outlet in builtin()})
+    every = builtin(include_opt_in=True)
+    tracker = Tracker(total, console, {outlet.id: outlet.name for outlet in every})
     console.say(f"Reading {_count(total, 'article')} ...")
     try:
         fetched = fetch(
@@ -634,6 +637,7 @@ def _fetch_command(args: argparse.Namespace, console: Console) -> int:
         keywords=keywords or None,
         start=start,
         end=end,
+        outlets=builtin(include_opt_in=True),
     )
     if fetched is None:
         return STOPPED
@@ -666,7 +670,7 @@ def check_table(table: pd.DataFrame, path: Path) -> None:
     blank = (table["outlet"].isna() | table["url"].isna()).tolist()
     if any(blank):
         raise UsageError(f"{path}: row {blank.index(True) + 1} has no outlet or no url")
-    known = [outlet.id for outlet in builtin()]
+    known = [outlet.id for outlet in builtin(include_opt_in=True)]
     unknown = sorted({str(outlet) for outlet in table["outlet"]} - set(known))
     if unknown:
         raise UsageError(

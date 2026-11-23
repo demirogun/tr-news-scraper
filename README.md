@@ -3,7 +3,7 @@
 # tr-news-scraper
 
 Search Turkish news archives by keyword and date range, politely. tr-news-scraper finds the
-articles seven Turkish-language outlets published about your keywords, reads their text, author
+articles 24 Turkish-language outlets published about your keywords, reads their text, author
 and publication time, and tells you what each outlet could and couldn't provide. It obeys every
 site's robots.txt and sends each site one request per second.
 
@@ -80,7 +80,7 @@ trnews coverage --check
 |---|---|
 | `outlet` | the outlet's id, such as `trt-haber` |
 | `month` | the archive month that lists the article, as `YYYY-MM` |
-| `day` | the publication day, when the archive gives it (Milliyet); empty until `fetch()` otherwise |
+| `day` | the publication day, when the archive gives it (Odatv); empty until `fetch()` otherwise |
 | `title` | the headline, when the archive gives one; `fetch()` fills the rest from each page |
 | `url` | the article's address, unique in the table |
 | `matched` | the keywords that matched, such as `deprem, tsunami` |
@@ -115,15 +115,33 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 
 ## Outlets
 
-| Outlet | `id` | Archive | From | Headlines |
-|---|---|---|---|---|
-| Cumhuriyet | `cumhuriyet` | monthly sitemap | 1962-08 | no |
-| Euronews Türkçe | `euronews-tr` | monthly sitemap | 2010-01 | no |
-| TRT Haber | `trt-haber` | monthly sitemap | 2016-07 | no |
-| Star | `star` | monthly sitemap | 2012-09 | image titles |
-| Akşam | `aksam` | monthly sitemap | 2010-12 | no |
-| Sözcü | `sozcu` | monthly sitemap | 2023-12 | no |
-| Milliyet | `milliyet` | site search | — | search results |
+| Outlet | `id` | Archive | From | Headlines | Default |
+|---|---|---|---|---|---|
+| Cumhuriyet | `cumhuriyet` | monthly sitemap | 1962-08 | no | yes |
+| Euronews Türkçe | `euronews-tr` | monthly sitemap | 2010-01 | no | yes |
+| TRT Haber | `trt-haber` | monthly sitemap | 2016-07 | no | yes |
+| Star | `star` | monthly sitemap | 2012-09 | image titles | yes |
+| Akşam | `aksam` | monthly sitemap | 2010-12 | no | yes |
+| Sözcü | `sozcu` | monthly sitemap | 2023-12 | no | yes |
+| A Haber | `a-haber` | monthly sitemap | 2011-03 | no | yes |
+| Aydınlık | `aydinlik` | monthly sitemap | 2010-02 | no | yes |
+| Bloomberg HT | `bloomberg-ht` | chunked sitemap | 2010-09 | no | yes |
+| Diken | `diken` | chunked sitemap | 2013-12 | no | yes |
+| Evrensel | `evrensel` | chunked sitemap | 2011-02 | no | yes |
+| Haber Global | `haber-global` | monthly sitemap | 2019-02 | no | yes |
+| Habertürk | `haberturk` | monthly sitemap | 2006-09 | no | yes |
+| Kısa Dalga | `kisa-dalga` | chunked sitemap | 2020-06 | no | yes |
+| Mynet | `mynet` | monthly sitemap | 2013-03 | no | yes |
+| NTV | `ntv` | chunked sitemap | 2008-12 | no | yes |
+| Odatv | `odatv` | monthly sitemap | 2007-09 | news titles | yes |
+| Olay | `olay` | chunked sitemap | 2014-09 | no | yes |
+| Özgür Kocaeli | `ozgur-kocaeli` | monthly sitemap | 2006-01 | no | yes |
+| Sabah | `sabah` | monthly sitemap | 2003-11 | no | yes |
+| Takvim | `takvim` | monthly sitemap | 2009-02 | no | yes |
+| Timeturk | `timeturk` | chunked sitemap | 2014-01 | no | yes |
+| Türkgün | `turkgun` | monthly sitemap | 2019-03 | image titles | yes |
+| Yeni Asır | `yeni-asir` | monthly sitemap | 2009-07 | no | yes |
+| Sputnik Türkiye | `sputnik-tr` | monthly sitemap | 2014-11 | no | no |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
 - **Euronews Türkçe:** Matched on URLs only: the titles in its sitemaps describe photos, not articles.
@@ -131,7 +149,25 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Star:** Headlines come from the image titles in its sitemaps.
 - **Akşam:** Lists article URLs without headlines.
 - **Sözcü:** Sözcü's new website, from December 2023; older articles aren't in its archive.
-- **Milliyet:** Milliyet's search returns only its newest 10,000 results for each keyword; for a frequent word like 'deprem' that reaches back about two and a half years.
+- **A Haber:** Every month since March 2011. No headlines.
+- **Aydınlık:** Every month since April 2011; only scattered months before. No headlines.
+- **Bloomberg HT:** Numbered files of 1,000 articles each, back to September 2010. No headlines.
+- **Diken:** Numbered files of 1,000 articles each, the newest first, back to December 2013. No headlines.
+- **Evrensel:** Numbered files of 10,000 articles each, back to February 2011. No headlines.
+- **Haber Global:** Every month since February 2019, the busiest in two parts. No headlines.
+- **Habertürk:** Every month since September 2006. A month's file lists the articles last edited that month, so a scan also reads the month after and keeps its articles by number. No headlines.
+- **Kısa Dalga:** Four large files of up to 40,000 articles each, back to June 2020. No headlines.
+- **Mynet:** A portal that carries much agency copy, in one file per section and month: every month since August 2014, scattered months before. No headlines.
+- **NTV:** Numbered files of about 1,000 articles each, back to December 2008. No headlines.
+- **Odatv:** One file per section and month, every month since September 2007. Headlines and publication days come from its Google News tags.
+- **Olay:** A regional paper of Bursa. Numbered files of about 1,000 articles each, the newest first, back to September 2014. No headlines.
+- **Özgür Kocaeli:** A regional paper of Kocaeli, the 1999 earthquake's area. Every month since September 2010; only scattered months before. No headlines.
+- **Sabah:** Every month since November 2003, the busiest in parts; about 3% of its articles are on finans.sabah.com.tr. No headlines.
+- **Takvim:** Every month since February 2009. No headlines.
+- **Timeturk:** Numbered files of 1,000 articles each, the newest first; its oldest articles are dated January 2014. No headlines.
+- **Türkgün:** Every month since March 2019. Headlines come from the image titles in its sitemaps.
+- **Yeni Asır:** A regional paper of İzmir. Every month since July 2009. No headlines.
+- **Sputnik Türkiye:** Opt-in: funded by the Russian state, so it's read only when you name it. Every month since November 2014. No headlines.
 
 Every outlet's archive is allowed by its robots.txt. Where an archive has no headlines, articles
 are matched on their URLs; after `fetch()`, `text_matched` shows which keywords each text names.
@@ -139,7 +175,26 @@ are matched on their URLs; after `fetch()`, `text_matched` shows which keywords 
 `coverage()` lists the same without a request, and `coverage(check=True)` checks each archive now.
 A weekly check on GitHub reads every outlet's real archive and opens an issue when one breaks.
 
-You can add an outlet that publishes monthly sitemaps by describing it, without writing code:
+`search()` reads the outlets marked "yes" under Default. Sputnik Türkiye, funded by the Russian
+state, is opt-in: it's read only when you name it, alongside the others or alone.
+`builtin(include_opt_in=True)` lists every built-in outlet.
+
+```python
+from tr_news_scraper import search
+from tr_news_scraper.outlets import builtin
+
+result = search("deprem", "2023-02-01", "2023-03-01", outlets=[*builtin(), "sputnik-tr"])
+```
+
+On the command line, `--outlets` takes any built-in id, such as `--outlets sputnik-tr`. To search
+only the outlets 1.0 read, name them: `cumhuriyet`, `euronews-tr`, `trt-haber`, `star`, `aksam`
+and `sozcu`. Milliyet, 1.0's seventh, is gone: its robots.txt now disallows the search it was
+read through.
+
+You can add an outlet of your own by describing its archive, without writing code: a
+`MonthlySitemap` for an index that lists files by month, a `ChunkedSitemap` for an index of
+numbered files in publication order, or a `SiteSearch` for a search page that robots.txt allows.
+An outlet that publishes monthly sitemaps:
 
 ```python
 from tr_news_scraper import search
@@ -152,6 +207,26 @@ haber = MonthlySitemap(
     month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
 )
 result = search("deprem", "2023-02-01", "2023-03-01", outlets=[*builtin(), haber])
+```
+
+A month may list several files, and all are read. `titles="news"` takes headlines from Google News
+tags, and `grouping="last-edit"` with an `article_id` pattern handles an archive that files each
+article under the month of its last edit. For an archive of numbered files, say which file holds
+the oldest articles and how each file orders its own; a search finds its date range in a few
+requests:
+
+```python
+from tr_news_scraper.outlets import ChunkedSitemap, Month
+
+arsiv = ChunkedSitemap(
+    id="arsiv",
+    name="Arşiv",
+    index="https://arsiv.example/sitemap.xml",
+    chunk_file=r"/post-sitemap(?P<n>\d*)\.xml$",
+    chunk_order="newest-first",
+    entry_order="newest-first",
+    earliest=Month(2014, 1),
+)
 ```
 
 ## Responsible use
@@ -186,8 +261,7 @@ This section explains how the tool is meant to be used. It isn't legal advice.
 
 ## Limits
 
-- Sitemap archives date articles only to the month until `fetch()` reads each page.
-- Milliyet's search returns only its newest 10,000 results for each keyword.
+- Most sitemap archives date articles only to the month until `fetch()` reads each page.
 - Search matches URLs and headlines, so an article that names a keyword only in its text isn't
   found. Synonyms aren't added: search for `heyelan` and `toprak kayma` together. The CHANGELOG
   lists the other known limits.

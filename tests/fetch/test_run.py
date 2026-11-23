@@ -10,6 +10,7 @@ from requests_mock import Mocker
 
 import tr_news_scraper._fetch as fetch_module
 from tests.fetch.conftest import HTML, serve_page
+from tests.site_search import MILLIYET
 from tr_news_scraper._extract import extractor
 from tr_news_scraper._fetch import HTML_ACCEPT, FetchRun, fetch_outlet
 from tr_news_scraper._http import CachePolicy, Http
@@ -128,6 +129,23 @@ def test_an_article_robots_txt_disallows_is_never_requested(
     assert page_requests(requests_mock) == 0
 
 
+def test_a_record_kept_by_1_0_is_extracted_again(http: Http, requests_mock: Mocker) -> None:
+    # 1.0 kept records under its own settings; 1.1 reads structured data first, so the page is
+    # downloaded and extracted once more (SPEC-1.1 F3h).
+    from importlib.metadata import version
+
+    old_settings = "precision, original publication date, no extensive date search, no comments"
+    old = f"trafilatura {version('trafilatura')}; {old_settings}"
+    assert old != extractor()
+    record = b'{"title": "Eski", "author": null, "published": null, "text": "Eski metin.",'
+    http.store_record(f"{old}\n{FIRST}", record + b' "fetched_at": "2026-11-08T10:00:00+03:00"}')
+    serve_page(requests_mock, FIRST, "star")
+    found = run(http, [(0, FIRST)])
+    assert (found.downloaded, found.cached) == (1, 0)
+    assert found.results[0].extracted.title != "Eski"
+    assert http.load_record(f"{extractor()}\n{FIRST}") is not None
+
+
 def test_a_damaged_record_is_read_again(http: Http, requests_mock: Mocker) -> None:
     serve_page(requests_mock, FIRST, "star")
     http.store_record(f"{extractor()}\n{FIRST}", b"not a record")
@@ -176,9 +194,9 @@ def test_a_milliyet_article_moved_to_its_section_host_is_read(
 ) -> None:
     moved = "https://www.milliyet.com.tr/uzmanpara/deprem-haberi-7692430"
     section = "https://uzmanpara.milliyet.com.tr/uzmanpara/deprem-haberi-7692430"
+    for host in MILLIYET.hosts:
+        requests_mock.get(f"https://{host}/robots.txt", status_code=404)
     requests_mock.get(moved, status_code=301, headers={"Location": section})
     serve_page(requests_mock, section, "milliyet")
-    found = fetch_outlet(
-        get("milliyet"), [(0, moved)], http, refresh=False, offline=False, progress=None
-    )
+    found = fetch_outlet(MILLIYET, [(0, moved)], http, refresh=False, offline=False, progress=None)
     assert found.results[0].extracted.error is None

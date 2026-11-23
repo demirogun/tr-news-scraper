@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/siteindex.xsd">
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_google_news.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_piyasa.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_authors.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_categories.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_video.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_news_230.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_news_185.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_news_184.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_news_183.xml</loc>
+        </sitemap>
+    <sitemap>
+        <loc>https://www.bloomberght.com/sitemap_news_0.xml</loc>
+        </sitemap>
+</sitemapindex>

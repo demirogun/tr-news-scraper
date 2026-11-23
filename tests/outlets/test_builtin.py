@@ -10,10 +10,9 @@ from requests_mock import Mocker
 
 from tr_news_scraper._http import Http
 from tr_news_scraper._http.safety import parse_xml
-from tr_news_scraper.outlets import Month, MonthlySitemap, SiteSearch, builtin, get
+from tr_news_scraper.outlets import Month, MonthlySitemap, builtin, get
 from tr_news_scraper.outlets._model import Gap
 from tr_news_scraper.outlets._scan import scan
-from tr_news_scraper.outlets._search import page_url, parse_page
 from tr_news_scraper.outlets._sitemaps import listed_months
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -86,7 +85,14 @@ def sitemap(outlet_id: str) -> MonthlySitemap:
 
 
 def test_the_built_in_outlets_come_in_a_fixed_order() -> None:
-    assert [outlet.id for outlet in builtin()] == [*SITEMAP_IDS, "milliyet"]
+    # 1.0's outlets first, in 1.0's order, so existing tables keep it; then 1.1's, by id.
+    # Milliyet, 1.0's seventh, left in 1.1: its robots.txt now disallows its search.
+    ids = [outlet.id for outlet in builtin()]
+    assert ids[:6] == SITEMAP_IDS
+    assert ids[6:] == sorted(ids[6:])
+    every = [outlet.id for outlet in builtin(include_opt_in=True)]
+    assert every[: len(ids)] == ids
+    assert len(set(every)) == len(every)
 
 
 def test_get_finds_an_outlet_by_id() -> None:
@@ -99,10 +105,9 @@ def test_get_names_the_valid_ids_for_an_unknown_one() -> None:
 
 
 def test_every_built_in_outlet_explains_its_coverage() -> None:
-    for outlet in builtin():
+    for outlet in builtin(include_opt_in=True):
         assert outlet.notes
-        expected = "site search" if outlet.id == "milliyet" else "monthly sitemap"
-        assert outlet.method == expected
+        assert outlet.method in {"monthly sitemap", "chunked sitemap"}
 
 
 @pytest.mark.parametrize(
@@ -197,57 +202,3 @@ def test_sozcu_in_february_2023_reads_only_its_index(http: Http, requests_mock: 
     assert found.gaps == [Gap("before-archive", "the archive starts in 2023-12", month=FEB_2023)]
     archive = [r.url for r in requests_mock.request_history if not r.url.endswith("robots.txt")]
     assert archive == [outlet.index]
-
-
-def milliyet() -> SiteSearch:
-    outlet = get("milliyet")
-    assert isinstance(outlet, SiteSearch)
-    return outlet
-
-
-def milliyet_page(number: int) -> str:
-    return recorded("milliyet", f"deprem-page-{number}.html").decode("utf-8")
-
-
-def test_milliyets_recorded_first_page_gives_headlines_and_days() -> None:
-    outlet = milliyet()
-    url = page_url(outlet, "deprem", 1)
-    page = parse_page(milliyet_page(1), outlet, 1, url)
-    assert len(page.results) == 5
-    first = page.results[0]
-    assert first.url == (
-        "https://www.milliyet.com.tr/galeri/son-depremler-7-kasim-2026-yakinimda-deprem-mi-oldu-"
-        "deprem-nerede-kac-siddetinde-oldu-son-dakika-deprem-haberleri-7696134"
-    )
-    assert first.title is not None
-    assert first.title.startswith("SON DEPREMLER 7 KASIM 2026: Yakınımda deprem mi oldu?")
-    assert (first.day, page.oldest) == (date(2026, 11, 7), date(2026, 11, 6))
-    assert (page.dropped, page.unreadable) == (0, 0)
-
-
-def test_milliyets_page_400_is_from_may_2024_and_page_401_is_empty() -> None:
-    outlet = milliyet()
-    deep = parse_page(milliyet_page(400), outlet, 400, page_url(outlet, "deprem", 400))
-    assert (deep.newest, deep.oldest) == (date(2024, 5, 26), date(2024, 5, 25))
-    assert deep.results[0].title == "AFAD duyurdu! Marmara Denizi'nde 3.8 büyüklüğünde deprem"
-    beyond = parse_page(milliyet_page(401), outlet, 401, page_url(outlet, "deprem", 401))
-    assert beyond.empty
-
-
-def test_a_milliyet_scan_reports_where_its_results_end(http: Http, requests_mock: Mocker) -> None:
-    outlet = milliyet()
-    requests_mock.get(page_url(outlet, "deprem", 1), text=milliyet_page(1))
-    requests_mock.get(page_url(outlet, "deprem", 2), text=milliyet_page(401))
-    found = scan(outlet, http, date(2026, 11, 6), date(2026, 11, 8), ["deprem"], today=TODAY)
-    candidates = list(found)
-    assert [c.day for c in candidates] == [date(2026, 11, 7)] * 4 + [date(2026, 11, 6)]
-    assert all(c.month == Month(2026, 11) and c.title for c in candidates)
-    [gap] = found.gaps
-    assert (gap.reason, gap.keyword, gap.reached) == ("window", "deprem", date(2026, 11, 6))
-    assert "nothing older than 2026-11-06" in gap.detail
-
-
-def test_milliyet_allows_its_uzmanpara_section_host() -> None:
-    # Milliyet's /uzmanpara/ links redirect there; its robots.txt allows article paths
-    # (checked 2026-11-08, and weekly by the live robots test).
-    assert milliyet().hosts == {"www.milliyet.com.tr", "uzmanpara.milliyet.com.tr"}

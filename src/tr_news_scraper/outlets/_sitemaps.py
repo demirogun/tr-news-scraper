@@ -1,4 +1,4 @@
-"""Reading monthly sitemaps: the months an index lists, and the articles in one month's file.
+"""Reading monthly sitemaps: the months an index lists, and the articles in a month's files.
 
 Everything here works on parsed documents, so it never touches the network.
 """
@@ -6,17 +6,21 @@ Everything here works on parsed documents, so it never touches the network.
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from typing import Literal
 
 from lxml import etree
 
-from tr_news_scraper.outlets._dates import parse_lastmod
+from tr_news_scraper.outlets._dates import ISTANBUL, parse_lastmod
 from tr_news_scraper.outlets._model import Candidate, Gap, Month, MonthlySitemap
 
 IMAGE_NS = "http://www.google.com/schemas/sitemap-image/1.1"
+NEWS_NS = "http://www.google.com/schemas/sitemap-news/0.9"
 _IMAGE_TITLE = f"{{{IMAGE_NS}}}image/{{{IMAGE_NS}}}title"
+_NEWS_DATE = f"{{{NEWS_NS}}}news/{{{NEWS_NS}}}publication_date"
+_NEWS_TITLE = f"{{{NEWS_NS}}}news/{{{NEWS_NS}}}title"
 
 
 class SitemapError(ValueError):
@@ -24,11 +28,29 @@ class SitemapError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class Entry:
+    """One ``<url>`` of a sitemap file, before any check of its URL."""
+
+    url: str
+    """The ``<loc>``, without surrounding whitespace; empty when missing."""
+    lastmod: datetime | None
+    published: datetime | None
+    """Google News's ``<news:publication_date>``, timezone-aware (O4a)."""
+    title: str | None
+    """The headline, from where the outlet says it is; spaces collapsed, NFC."""
+
+    @property
+    def day(self) -> date | None:
+        """The publication day in Türkiye, when the entry states it."""
+        return None if self.published is None else self.published.astimezone(ISTANBUL).date()
+
+
+@dataclass(frozen=True, slots=True)
 class Read:
-    """A month whose file the index lists, so it will be read."""
+    """A month whose files the index lists, so they will be read, in index order."""
 
     month: Month
-    url: str
+    urls: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,14 +63,16 @@ class MonthFile:
     """Entries skipped: no URL, not HTTPS, or not on the outlet's hosts."""
 
 
-def listed_months(index: etree._Element, outlet: MonthlySitemap) -> dict[Month, str]:
-    """The months the sitemap index lists, each with its file's URL (whitespace stripped).
+def listed_months(index: etree._Element, outlet: MonthlySitemap) -> dict[Month, tuple[str, ...]]:
+    """The months the sitemap index lists, each with its files' URLs in index order (whitespace
+    stripped).
 
-    Entries that don't match the outlet's ``month_file`` pattern are ignored, as are impossible
-    months. When the index lists a month twice, the first entry wins.
+    A month may list several files: parts of one long list, or one file per section (O3a). The
+    same URL listed twice counts once. Entries that don't match the outlet's ``month_file``
+    pattern are ignored, as are impossible months.
     """
-    prefix = _expect(index, "sitemapindex", "a sitemap index")
-    months: dict[Month, str] = {}
+    prefix = index_prefix(index)
+    months: dict[Month, list[str]] = {}
     for entry in index.iterchildren(f"{prefix}sitemap"):
         url = (entry.findtext(f"{prefix}loc") or "").strip()
         found = outlet.pattern.search(url) if url else None
@@ -58,11 +82,13 @@ def listed_months(index: etree._Element, outlet: MonthlySitemap) -> dict[Month, 
             month = Month(int(found["year"]), int(found["month"]))
         except ValueError:
             continue
-        months.setdefault(month, url)
-    return months
+        files = months.setdefault(month, [])
+        if url not in files:
+            files.append(url)
+    return {month: tuple(files) for month, files in months.items()}
 
 
-def plan_months(listed: Mapping[Month, str], start: date, end: date) -> list[Read | Gap]:
+def plan_months(listed: Mapping[Month, Sequence[str]], start: date, end: date) -> list[Read | Gap]:
     """For each month the range ``[start, end)`` touches: the file to read, or why there's none.
 
     A month the index doesn't list is never requested; outlets may answer an error for it.
@@ -76,7 +102,7 @@ def plan_months(listed: Mapping[Month, str], start: date, end: date) -> list[Rea
     steps: list[Read | Gap] = []
     for month in Month.span(start, end):
         if month in listed:
-            steps.append(Read(month, listed[month]))
+            steps.append(Read(month, tuple(listed[month])))
         elif month < oldest:
             steps.append(Gap("before-archive", f"the archive starts in {oldest}", month=month))
         elif month > newest:
@@ -92,30 +118,59 @@ def read_month_file(
     """The candidates in one month's sitemap file, in file order.
 
     URLs lose surrounding whitespace and must be HTTPS on the outlet's hosts; other entries are
-    dropped and counted. Headlines come from ``<image:title>`` only when the outlet says its
-    image titles are headlines.
+    dropped and counted. A Google News publication date gives a candidate its day (O4a), and
+    headlines come from where the outlet says they are (``titles``).
     """
-    prefix = _expect(urlset, "urlset", "a list of URLs (<urlset>)")
-    want_titles = outlet.titles == "image"
     candidates: list[Candidate] = []
     entries = dropped = 0
-    for entry in urlset.iterchildren(f"{prefix}url"):
+    for entry in read_entries(urlset, outlet.titles):
         entries += 1
-        url = (entry.findtext(f"{prefix}loc") or "").strip()
-        if not url or not outlet.accepts(url):
+        if not entry.url or not outlet.accepts(entry.url):
             dropped += 1
             continue
         candidates.append(
             Candidate(
                 outlet=outlet.id,
-                url=url,
+                url=entry.url,
                 month=month,
-                title=_clean(entry.findtext(_IMAGE_TITLE)) if want_titles else None,
-                lastmod=parse_lastmod(entry.findtext(f"{prefix}lastmod")),
+                title=entry.title,
+                day=entry.day,
+                lastmod=entry.lastmod,
                 source=source,
             )
         )
     return MonthFile(candidates, entries, dropped)
+
+
+def read_entries(
+    urlset: etree._Element, titles: Literal["image", "news"] | None
+) -> Iterator[Entry]:
+    """Every ``<url>`` entry of a sitemap file, in file order. Raises ``SitemapError`` for a
+    document that isn't a list of URLs."""
+    prefix = _expect(urlset, "urlset", "a list of URLs (<urlset>)")
+    title_path = {"image": _IMAGE_TITLE, "news": _NEWS_TITLE}.get(titles or "")
+    for entry in urlset.iterchildren(f"{prefix}url"):
+        yield Entry(
+            url=(entry.findtext(f"{prefix}loc") or "").strip(),
+            lastmod=parse_lastmod(entry.findtext(f"{prefix}lastmod")),
+            published=parse_lastmod(entry.findtext(_NEWS_DATE)),
+            title=None if title_path is None else _clean(entry.findtext(title_path)),
+        )
+
+
+def index_prefix(index: etree._Element) -> str:
+    """The ``{namespace}`` prefix a sitemap index's entries use. Raises ``SitemapError`` for a
+    document that isn't a sitemap index."""
+    return _expect(index, "sitemapindex", "a sitemap index")
+
+
+def article_id(outlet: MonthlySitemap, url: str) -> int | None:
+    """The number ``article_id`` finds in an article URL, or ``None``."""
+    if outlet.id_pattern is None:
+        return None
+    found = outlet.id_pattern.search(url)
+    text = found["id"] if found else None
+    return int(text) if text and text.isdigit() else None
 
 
 def _expect(root: etree._Element, name: str, description: str) -> str:

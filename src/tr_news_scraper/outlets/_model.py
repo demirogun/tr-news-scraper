@@ -79,7 +79,8 @@ class Candidate:
     title: str | None = None
     """The headline, when the archive lists real headlines (never a photo caption)."""
     day: date | None = None
-    """The publication day, when the archive states it (site search)."""
+    """The publication day in Türkiye, when the archive states it: a site search's result, or a
+    sitemap entry's Google News publication date."""
     lastmod: datetime | None = None
     """The sitemap's last-edit time (timezone-aware). It isn't the publication time."""
     source: str = ""
@@ -108,18 +109,28 @@ class MonthlySitemap:
     """HTTPS URL of the sitemap index that lists the monthly files."""
     month_file: str
     """Regex with named groups ``year`` and ``month``, searched in each ``<loc>`` of the index."""
-    titles: Literal["image"] | None = None
-    """``"image"`` when ``<image:title>`` holds the article's headline (checked per outlet)."""
+    titles: Literal["image", "news"] | None = None
+    """Where the article's headline is, when the files have it (checked per outlet):
+    ``"image"`` for ``<image:title>``, ``"news"`` for Google News's ``<news:title>``."""
     earliest: Month | None = None
     """The first month with articles, as verified; shown by coverage and checked weekly."""
     extra_hosts: frozenset[str] = frozenset()
     """Hosts besides the index's own host that article URLs may use."""
     notes: str = ""
     """One or two sentences about the archive, shown by coverage."""
+    grouping: Literal["publication", "last-edit"] = "publication"
+    """What puts an article in a month's file: its publication, or its last edit
+    (``"last-edit"``, which needs ``article_id``). An article edited after its month is then in
+    a later file, and the scan looks one month ahead for it."""
+    article_id: str | None = None
+    """Regex with a named group ``id``, searched in each article URL: a number that grows with
+    publication, such as ``r"-(?P<id>\\d+)$"``."""
     hosts: frozenset[str] = field(init=False, compare=False, repr=False)
     """Every host this outlet's requests and article URLs may use (IDNA, lowercase)."""
     pattern: re.Pattern[str] = field(init=False, compare=False, repr=False)
     """``month_file``, compiled."""
+    id_pattern: re.Pattern[str] | None = field(init=False, compare=False, repr=False)
+    """``article_id``, compiled."""
 
     def __post_init__(self) -> None:
         _check_identity(self.id, self.name)
@@ -130,10 +141,87 @@ class MonthlySitemap:
             raise ValueError(f"month_file isn't a valid regular expression: {error}") from None
         if not {"year", "month"} <= set(pattern.groupindex):
             raise ValueError("month_file needs the named groups 'year' and 'month'")
-        if self.titles not in (None, "image"):
-            raise ValueError("titles must be None or 'image'")
-        if self.earliest is not None and not isinstance(self.earliest, Month):
-            raise ValueError("earliest must be a Month, such as Month(2010, 12)")
+        _check_titles(self.titles)
+        _check_earliest(self.earliest)
+        if self.grouping not in ("publication", "last-edit"):
+            raise ValueError("grouping must be 'publication' or 'last-edit'")
+        id_pattern = None if self.article_id is None else _id_pattern(self.article_id)
+        if self.grouping == "last-edit" and id_pattern is None:
+            raise ValueError("grouping='last-edit' needs article_id, a regex with a group 'id'")
+        object.__setattr__(self, "extra_hosts", _host_set(self.extra_hosts))
+        object.__setattr__(self, "hosts", self.extra_hosts | {normalize_host(index_host)})
+        object.__setattr__(self, "pattern", pattern)
+        object.__setattr__(self, "id_pattern", id_pattern)
+
+    @property
+    def method(self) -> str:
+        """How the outlet's archive is read, for coverage reports."""
+        return "monthly sitemap"
+
+    def accepts(self, url: str) -> bool:
+        """Whether ``url`` may be an article of this outlet: HTTPS on one of its hosts."""
+        return _accepts(url, self.hosts)
+
+
+@dataclass(frozen=True, slots=True)
+class ChunkedSitemap:
+    """An outlet whose sitemap index lists numbered files of articles, in publication order.
+
+    Nothing says which file holds which month, so a scan finds the range from the files' dates,
+    in a few requests, and reads only the files around it. Only the files the index lists are
+    ever read::
+
+        ChunkedSitemap(
+            id="ntv",
+            name="NTV",
+            index="https://www.ntv.com.tr/story-sitemap",
+            chunk_file=r"/story-sitemap/(?P<n>\\d+)$",
+            chunk_order="oldest-first",
+            entry_order="newest-first",
+        )
+    """
+
+    id: str
+    """Lowercase kebab-case, unique among outlets: ``"ntv"``."""
+    name: str
+    """Display name: ``"NTV"``."""
+    index: str
+    """HTTPS URL of the sitemap index that lists the numbered files."""
+    chunk_file: str
+    """Regex with a named group ``n``, searched in each ``<loc>`` of the index: the file's number.
+    An empty ``n`` counts as 1, for archives whose first file has no number."""
+    chunk_order: Literal["oldest-first", "newest-first"]
+    """What the lowest-numbered file holds: the oldest articles, or the newest."""
+    entry_order: Literal["oldest-first", "newest-first"]
+    """The order of the articles inside each file."""
+    titles: Literal["image", "news"] | None = None
+    """Where the article's headline is, when the files have it (see ``MonthlySitemap``)."""
+    earliest: Month | None = None
+    """The first month with articles, as verified. Dates before it are ignored when dating
+    files, and the weekly check expects the oldest file to start there."""
+    extra_hosts: frozenset[str] = frozenset()
+    """Hosts besides the index's own host that article URLs may use."""
+    notes: str = ""
+    """One or two sentences about the archive, shown by coverage."""
+    hosts: frozenset[str] = field(init=False, compare=False, repr=False)
+    """Every host this outlet's requests and article URLs may use (IDNA, lowercase)."""
+    pattern: re.Pattern[str] = field(init=False, compare=False, repr=False)
+    """``chunk_file``, compiled."""
+
+    def __post_init__(self) -> None:
+        _check_identity(self.id, self.name)
+        index_host = _https_host("index", self.index)
+        try:
+            pattern = re.compile(self.chunk_file)
+        except (re.error, TypeError) as error:
+            raise ValueError(f"chunk_file isn't a valid regular expression: {error}") from None
+        if "n" not in pattern.groupindex:
+            raise ValueError("chunk_file needs the named group 'n'")
+        for name in ("chunk_order", "entry_order"):
+            if getattr(self, name) not in ("oldest-first", "newest-first"):
+                raise ValueError(f"{name} must be 'oldest-first' or 'newest-first'")
+        _check_titles(self.titles)
+        _check_earliest(self.earliest)
         object.__setattr__(self, "extra_hosts", _host_set(self.extra_hosts))
         object.__setattr__(self, "hosts", self.extra_hosts | {normalize_host(index_host)})
         object.__setattr__(self, "pattern", pattern)
@@ -141,7 +229,7 @@ class MonthlySitemap:
     @property
     def method(self) -> str:
         """How the outlet's archive is read, for coverage reports."""
-        return "monthly sitemap"
+        return "chunked sitemap"
 
     def accepts(self, url: str) -> bool:
         """Whether ``url`` may be an article of this outlet: HTTPS on one of its hosts."""
@@ -211,7 +299,7 @@ class SiteSearch:
         return _accepts(url, self.hosts)
 
 
-Outlet = MonthlySitemap | SiteSearch
+Outlet = MonthlySitemap | SiteSearch | ChunkedSitemap
 """Any outlet definition."""
 
 GapReason = Literal[
@@ -250,6 +338,26 @@ def _https_host(field_name: str, url: str) -> str:
         return check_public_https(url)
     except HostNotAllowed as error:
         raise ValueError(f"{field_name} must be an https URL on a public host: {error}") from None
+
+
+def _check_titles(titles: object) -> None:
+    if titles not in (None, "image", "news"):
+        raise ValueError("titles must be None, 'image' or 'news'")
+
+
+def _check_earliest(earliest: object) -> None:
+    if earliest is not None and not isinstance(earliest, Month):
+        raise ValueError("earliest must be a Month, such as Month(2010, 12)")
+
+
+def _id_pattern(expression: str) -> re.Pattern[str]:
+    try:
+        pattern = re.compile(expression)
+    except (re.error, TypeError) as error:
+        raise ValueError(f"article_id isn't a valid regular expression: {error}") from None
+    if "id" not in pattern.groupindex:
+        raise ValueError("article_id needs the named group 'id'")
+    return pattern
 
 
 def _reads_full_dates(fmt: str) -> bool:

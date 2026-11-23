@@ -7,6 +7,101 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+`search()` now reads 24 outlets by default instead of 7, so the same search finds more articles
+and makes more requests. Every outlet is still read from its own archive, under 1.0's robots.txt
+and politeness rules; outlets are searched in parallel, each at one request per second. To search
+only the outlets 1.0 read, name them with `outlets=` or `--outlets`; Milliyet is no longer one of
+them. `fetch()` also reads pages more faithfully, from their structured data first.
+
+### Added
+- New built-in outlets, each checked live against its robots.txt and its archive before it
+  was added. All but one are read by default:
+  - **A Haber** (`a-haber`): every month since March 2011.
+  - **Aydınlık** (`aydinlik`): every month since April 2011.
+  - **Bloomberg HT** (`bloomberg-ht`): back to September 2010.
+  - **Diken** (`diken`): back to December 2013.
+  - **Evrensel** (`evrensel`): back to February 2011.
+  - **Haber Global** (`haber-global`): every month since February 2019.
+  - **Habertürk** (`haberturk`): every month since September 2006, including the articles
+    edited a month later.
+  - **Kısa Dalga** (`kisa-dalga`): back to June 2020.
+  - **Mynet** (`mynet`): a portal with much agency copy, every month since August 2014.
+  - **NTV** (`ntv`): back to December 2008.
+  - **Odatv** (`odatv`): every month since September 2007, with headlines and publication days.
+  - **Olay** (`olay`): a regional paper of Bursa, back to September 2014.
+  - **Özgür Kocaeli** (`ozgur-kocaeli`): a regional paper of Kocaeli, every month since
+    September 2010.
+  - **Sabah** (`sabah`): every month since November 2003.
+  - **Sputnik Türkiye** (`sputnik-tr`): every month since November 2014; opt-in, because it's
+    funded by the Russian state.
+  - **Takvim** (`takvim`): every month since February 2009.
+  - **Timeturk** (`timeturk`): back to January 2014.
+  - **Türkgün** (`turkgun`): every month since March 2019, with headlines.
+  - **Yeni Asır** (`yeni-asir`): a regional paper of İzmir, every month since July 2009.
+- Opt-in outlets: built in, but read only when you name them. `builtin(include_opt_in=True)` lists
+  every built-in outlet, the opt-in ones last; `get()` finds any of them by id; and `coverage()`
+  lists them all, with a new `default` column that says which ones `search()` reads without being
+  told to. On the command line, `--outlets` and `trnews fetch FILE` take opt-in ids, and
+  `trnews coverage` shows the `default` column. `fetch()` of a table with an opt-in outlet's rows
+  says how to include it.
+- Sitemaps with Google News tags: an entry's `news:publication_date` gives the article its `day`,
+  so `search()` keeps it only when that day is in the range. With `MonthlySitemap(titles="news")`,
+  the entry's `news:title` is its headline, and `coverage()` says `news titles`.
+- `MonthlySitemap(grouping="last-edit", article_id=...)`, for archives that file each article under
+  the month of its last edit, so an article edited a month later is only in the next month's file.
+  `article_id` is a regex whose group `id` is a number that grows with publication. For each
+  month, the scan also reads the month before and the month after, and keeps the articles whose
+  ids fall in the month's span: each file is read once, so n months cost n + 2 files. The health
+  check reports such an archive when fewer than 99% of its entries give an id.
+- `ChunkedSitemap`, a third kind of outlet, for archives of numbered files in publication order
+  instead of months. You declare which file holds the oldest articles and the order inside each
+  file. A scan dates the files by their entries and finds a date range in a few requests, at most
+  ⌈log₂ n⌉ + 3 files before the range for n files. Archives aren't in exact publication order, so
+  the range's boundaries go where they best separate the dates on either side, and a few entries
+  out of place can't move them. Inside them, an article stays even when a later edit dates it
+  after the range; an older article edited during the range stays out. `coverage()` and the
+  health check handle it; its check costs three requests.
+
+### Changed
+- `fetch()` reads what each page states about itself first: its JSON-LD article data, its `<h1>`
+  and its meta tags. trafilatura still reads the article's body, and stands in for anything the
+  page doesn't state.
+  - **Headlines** are the page's own: the first `<h1>` that matches the JSON-LD headline,
+    `og:title` or trafilatura's title, else the JSON-LD headline. Where `og:title` is worded
+    differently from the headline, as on some Euronews Türkçe pages, the headline now wins.
+  - **Leads.** Most pages show their lead paragraph outside the article body, so 1.0 dropped it.
+    When the page's description matches a visible element, that text now opens `text`, unless
+    `text` already has it. A description that isn't shown on the page is never added.
+  - **Authors** come from JSON-LD, several joined by ", ". A name that only repeats the outlet or
+    publisher is left out, and so are email addresses. Desks and agencies stay.
+  - **Sign-up boxes** inside an article, such as a mailing list's, are left out of `text`, as
+    newsletter boxes already were.
+  - Because extraction changed, the articles `fetch()` kept from 1.0 are extracted again, once:
+    their pages are downloaded one more time on the next `fetch()`.
+- A monthly sitemap index may list several files for one month: parts of one long list, or one
+  file per section. `search()` now reads them all, in the index's order, and keeps each URL once;
+  1.0 read only the first. A file that can't be read is a gap of its own in the report, and the
+  month's other files still count. The health check reads up to three of last month's files to
+  find one with entries.
+
+### Removed
+- Milliyet. On 2026-11-23 its robots.txt began to disallow `/api/` for every crawler, and
+  tr-news-scraper read Milliyet only through its search, which is under `/api/`. 1.0.0 obeys:
+  its searches now report that Milliyet couldn't be read. In 1.1 the outlet is gone, so
+  `outlets=["milliyet"]` raises, and `fetch()` of a 1.0 table with Milliyet rows asks for a
+  definition; leave those rows out, as in `fetch(table[table["outlet"] != "milliyet"])`.
+  `SiteSearch` stays, for search pages that robots.txt allows.
+
+### Fixed
+- 1.0's page fixture for Milliyet, in its source distribution and repository, kept the names of
+  the columnists the page lists in a sidebar. It's rebuilt without them, and the fixture script
+  now replaces every journalist's name it can find on a page, not only the byline.
+- `published` keeps the page's own UTC offset. 1.0 read every time as Türkiye's, so a page that said
+  23:30+01:00 came out as 23:30+03:00 instead of 01:30 the next day, and Euronews Türkçe got only
+  the day from its URLs. Now Euronews Türkçe gets the exact time, and a date in a URL is used only
+  when the page states none. A page without JSON-LD's `datePublished` is dated by its
+  `article:published_time` meta tag, in either ISO 8601 form.
+
 ## [1.0.0] - 2026-11-08
 
 1.0 is a rewrite. It finds articles by keyword and date range in the archives of seven

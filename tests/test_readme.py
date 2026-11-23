@@ -32,7 +32,7 @@ SECTIONS = [
     "Development",
     "License",
 ]
-OUTLET_HEADER = "| Outlet | `id` | Archive | From | Headlines |"
+OUTLET_HEADER = "| Outlet | `id` | Archive | From | Headlines | Default |"
 CACHE_FOLDERS = {
     "win32": r"%LOCALAPPDATA%\tr-news-scraper\tr-news-scraper\Cache",
     "darwin": "~/Library/Caches/tr-news-scraper",
@@ -64,7 +64,11 @@ def test_the_outlet_table_matches_coverage() -> None:
         rows.append([cell.strip().strip("`") for cell in line.strip("|").split("|")])
     table = coverage()
     columns = [cells(table[name]) for name in ("name", "outlet", "method", "earliest", "headlines")]
-    expected = [[value or "—" for value in row] for row in zip(*columns, strict=True)]
+    defaults = ["yes" if value else "no" for value in table["default"]]
+    expected = [
+        [*(value or "—" for value in row), default]
+        for row, default in zip(zip(*columns, strict=True), defaults, strict=True)
+    ]
     assert rows == expected
 
 

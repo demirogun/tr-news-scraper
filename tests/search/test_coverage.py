@@ -16,7 +16,7 @@ from tests.search.conftest import recorded, serve_archive, serve_milliyet
 from tr_news_scraper import coverage
 from tr_news_scraper._coverage import COVERAGE_COLUMNS, HEALTH_COLUMNS, _coverage
 from tr_news_scraper._http import Http
-from tr_news_scraper.outlets import builtin, get
+from tr_news_scraper.outlets import MonthlySitemap, builtin, get
 from tr_news_scraper.outlets._dates import ISTANBUL
 
 NOW = datetime(2026, 11, 7, 12, 0, tzinfo=ISTANBUL)
@@ -27,8 +27,12 @@ def test_coverage_lists_every_built_in_outlet_without_a_request(requests_mock: M
     table = coverage()
     assert requests_mock.call_count == 0
     assert tuple(table.columns) == COVERAGE_COLUMNS
-    assert {str(dtype) for dtype in table.dtypes} == {"string"}
-    assert list(table["outlet"]) == [outlet.id for outlet in builtin()]
+    assert {str(dtype) for dtype in table.drop(columns="default").dtypes} == {"string"}
+    assert str(table["default"].dtype) == "bool"
+    assert list(table["outlet"]) == [outlet.id for outlet in builtin(include_opt_in=True)]
+    assert table["default"].tolist() == [
+        outlet in builtin() for outlet in builtin(include_opt_in=True)
+    ]
     rows = table.set_index("outlet")
     assert tuple(rows.loc["star", ["method", "earliest", "headlines", "hosts"]]) == (
         "monthly sitemap",
@@ -108,3 +112,14 @@ def test_coverage_builds_a_client_only_for_a_live_check(
 def test_the_package_exports_coverage() -> None:
     assert "coverage" in tr_news_scraper.__all__
     assert tr_news_scraper.coverage is coverage
+
+
+def test_an_outlet_whose_sitemaps_name_headlines_in_news_tags_says_so() -> None:
+    outlet = MonthlySitemap(
+        id="ornek",
+        name="Örnek",
+        index="https://www.example.com.tr/sitemaps/index.xml",
+        month_file=r"/(?P<year>\d{4})-(?P<month>\d{2})\.xml$",
+        titles="news",
+    )
+    assert coverage([outlet]).loc[0, "headlines"] == "news titles"

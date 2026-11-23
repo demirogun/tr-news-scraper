@@ -58,9 +58,9 @@ def test_the_index_gives_each_listed_month_and_its_file() -> None:
         "https://www.example.com.tr/sitemaps/posts-1962-8.xml",
     )
     assert listed_months(parse(index), OUTLET) == {
-        Month(2026, 11): "https://www.example.com.tr/sitemaps/posts-2026-11.xml",
-        Month(2023, 2): "https://www.example.com.tr/sitemaps/posts-2023-2.xml",
-        Month(1962, 8): "https://www.example.com.tr/sitemaps/posts-1962-8.xml",
+        Month(2026, 11): ("https://www.example.com.tr/sitemaps/posts-2026-11.xml",),
+        Month(2023, 2): ("https://www.example.com.tr/sitemaps/posts-2023-2.xml",),
+        Month(1962, 8): ("https://www.example.com.tr/sitemaps/posts-1962-8.xml",),
     }
 
 
@@ -75,12 +75,20 @@ def test_index_entries_that_arent_month_files_are_ignored() -> None:
     assert list(listed_months(parse(index), OUTLET)) == [FEBRUARY]
 
 
-def test_a_month_listed_twice_keeps_its_first_file() -> None:
+def test_a_month_may_list_several_files_kept_in_index_order() -> None:
     index = index_of(
         "https://www.example.com.tr/sitemaps/posts-2023-2.xml",
+        "https://www.example.com.tr/sitemaps/posts-2023-3.xml",
         "https://www.example.com.tr/sitemaps/posts-2023-02.xml",
+        "https://www.example.com.tr/sitemaps/posts-2023-2.xml",
     )
-    assert listed_months(parse(index), OUTLET)[FEBRUARY].endswith("posts-2023-2.xml")
+    assert listed_months(parse(index), OUTLET) == {
+        FEBRUARY: (
+            "https://www.example.com.tr/sitemaps/posts-2023-2.xml",
+            "https://www.example.com.tr/sitemaps/posts-2023-02.xml",
+        ),
+        Month(2023, 3): ("https://www.example.com.tr/sitemaps/posts-2023-3.xml",),
+    }
 
 
 def test_an_index_without_a_namespace_is_read_too() -> None:
@@ -95,17 +103,17 @@ def test_a_list_of_urls_isnt_an_index() -> None:
 
 def test_planning_reads_listed_months_and_explains_the_rest() -> None:
     listed = {
-        Month(2023, 1): "jan.xml",
-        Month(2023, 3): "mar.xml",
-        Month(2023, 5): "may.xml",
+        Month(2023, 1): ("jan.xml",),
+        Month(2023, 3): ("mar.xml", "mar-1.xml"),
+        Month(2023, 5): ("may.xml",),
     }
     assert plan_months(listed, date(2022, 12, 15), date(2023, 6, 10)) == [
         Gap("before-archive", "the archive starts in 2023-01", month=Month(2022, 12)),
-        Read(Month(2023, 1), "jan.xml"),
+        Read(Month(2023, 1), ("jan.xml",)),
         Gap("not-in-archive", "the archive has no file for 2023-02", month=Month(2023, 2)),
-        Read(Month(2023, 3), "mar.xml"),
+        Read(Month(2023, 3), ("mar.xml", "mar-1.xml")),
         Gap("not-in-archive", "the archive has no file for 2023-04", month=Month(2023, 4)),
-        Read(Month(2023, 5), "may.xml"),
+        Read(Month(2023, 5), ("may.xml",)),
         Gap("after-archive", "the archive ends in 2023-05", month=Month(2023, 6)),
     ]
 
@@ -190,6 +198,69 @@ def test_headlines_are_nfc_normalized() -> None:
     content = month_file(url_entry("https://www.example.com.tr/a-1", image_title=decomposed))
     found = read_month_file(parse(content), WITH_TITLES, FEBRUARY, SOURCE)
     assert found.candidates[0].title == "Kahramanmaraş"
+
+
+NEWS_NS = 'xmlns:news="http://www.google.com/schemas/sitemap-news/0.9"'
+WITH_NEWS_TITLES = MonthlySitemap(
+    id="ornek",
+    name="Örnek",
+    index="https://www.example.com.tr/sitemaps/posts.xml",
+    month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{1,2})\.xml$",
+    titles="news",
+)
+
+
+def news_file(*entries: str) -> bytes:
+    return xml(f"<urlset {NS} {IMAGE_NS} {NEWS_NS}>{''.join(entries)}</urlset>")
+
+
+def news_entry(loc: str, published: str | None = None, title: str | None = None) -> str:
+    parts = [f"<news:publication>{'<news:name>Örnek</news:name>'}</news:publication>"]
+    if published is not None:
+        parts.append(f"<news:publication_date>{published}</news:publication_date>")
+    if title is not None:
+        parts.append(f"<news:title>{title}</news:title>")
+    return (
+        f"<url><loc>{loc}</loc><lastmod>2023-03-10T09:00:00+03:00</lastmod>"
+        f"<news:news>{''.join(parts)}</news:news></url>"
+    )
+
+
+def test_a_google_news_publication_date_gives_the_day_in_istanbul() -> None:
+    content = news_file(
+        news_entry("https://www.example.com.tr/a-1", "2023-02-06T10:15:00+03:00"),
+        # 23:30 at UTC+1 is 01:30 the next day in Türkiye.
+        news_entry("https://www.example.com.tr/a-2", "2023-02-28T23:30:00+01:00"),
+        news_entry("https://www.example.com.tr/a-3", "2023-02-07"),
+        news_entry("https://www.example.com.tr/a-4", "7 Şubat 2023"),
+        news_entry("https://www.example.com.tr/a-5"),
+        url_entry("https://www.example.com.tr/a-6", "2023-02-08T10:00:00+03:00"),
+    )
+    found = read_month_file(parse(content), OUTLET, FEBRUARY, SOURCE)
+    assert [c.day for c in found.candidates] == [
+        date(2023, 2, 6),
+        date(2023, 3, 1),
+        date(2023, 2, 7),
+        None,
+        None,
+        None,
+    ]
+    plus_three = timezone(timedelta(hours=3))
+    assert found.candidates[0].lastmod == datetime(2023, 3, 10, 9, tzinfo=plus_three)
+    assert {c.month for c in found.candidates} == {FEBRUARY}
+
+
+def test_news_titles_are_headlines_only_when_the_outlet_says_so() -> None:
+    content = news_file(
+        news_entry("https://www.example.com.tr/a-1", "2023-02-06", "Deprem:   ilk  bilanço "),
+        news_entry("https://www.example.com.tr/a-2", "2023-02-06", "   "),
+        url_entry("https://www.example.com.tr/a-3", image_title="Fotoğraf"),
+    )
+    with_titles = read_month_file(parse(content), WITH_NEWS_TITLES, FEBRUARY, SOURCE)
+    assert [c.title for c in with_titles.candidates] == ["Deprem: ilk bilanço", None, None]
+    for outlet in (OUTLET, WITH_TITLES):
+        found = read_month_file(parse(content), outlet, FEBRUARY, SOURCE)
+        assert found.candidates[0].title is None
 
 
 def test_an_index_isnt_a_month_file() -> None:

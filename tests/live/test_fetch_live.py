@@ -1,26 +1,40 @@
 """Live check (weekly CI only): fetch still reads each outlet's articles, and finds wire copies.
 
-Run with ``uv run pytest -m live tests/live --no-cov``. It reads about 27 article pages politely:
-robots.txt obeyed, the honest User-Agent, one request per second per site.
+Run with ``uv run pytest -m live tests/live --no-cov``. It reads three articles of every
+built-in outlet, spread over last month, about 80 pages, each downloaded once, politely: robots.txt
+obeyed, the honest User-Agent, one request per second per site. A failure names outlets, URLs and
+counts, never text from the pages.
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterator
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime
 
 import pandas as pd
 import pytest
 
 from tr_news_scraper import fetch
-from tr_news_scraper._http import Http
-from tr_news_scraper.outlets import Month, MonthlySitemap, builtin
+from tr_news_scraper._extract import Extracted, extract
+from tr_news_scraper._http import CachePolicy, Http
+from tr_news_scraper._structured import PageFacts, alike, read_page
+from tr_news_scraper.errors import HttpError, OutletFailed
+from tr_news_scraper.outlets import Month, builtin, get
 from tr_news_scraper.outlets._dates import ISTANBUL
-from tr_news_scraper.outlets._scan import scan
+from tr_news_scraper.outlets._model import Candidate
+from tr_news_scraper.outlets._scan import HTML_ACCEPT, describe, scan
 
 PER_OUTLET = 3
 MIN_SHARE = 0.9
+MIN_OF_THREE = 2
 MIN_CHARACTERS = 300
+FURNITURE_WORDS = 5
+"""A line this long or longer that every page of an outlet repeats is page furniture."""
+WITHOUT_JSON_LD = {"sputnik-tr"}
+"""Outlets whose pages carry no JSON-LD article: Sputnik Türkiye's are dated by their
+article:published_time tag."""
 # Probed on 2026-11-08: Cumhuriyet and TRT Haber ran the same wire copy of these three stories.
 COPIES = [
     (
@@ -42,6 +56,22 @@ COPIES = [
 ]
 
 
+@dataclass(frozen=True)
+class Page:
+    """One sampled article: what fetch extracted, and what the page states."""
+
+    outlet: str
+    url: str
+    found: Extracted
+    facts: PageFacts
+    downloaded: bool = True
+
+    @property
+    def complete(self) -> bool:
+        text = self.found.text or ""
+        return bool(self.found.title and self.found.published and len(text) >= MIN_CHARACTERS)
+
+
 @pytest.fixture(scope="module")
 def http() -> Iterator[Http]:
     client = Http()
@@ -53,39 +83,153 @@ def today() -> date:
     return datetime.now(ISTANBUL).date()
 
 
-def newest(http: Http) -> pd.DataFrame:
-    """The newest three articles in last month's archive of each outlet; for Milliyet, its
-    first three search results for "deprem" this week."""
+def spread(candidates: list[Candidate]) -> list[Candidate]:
+    """The newest, the middle and the oldest of candidates ordered newest first. The newest three
+    can belong to one series whose articles open with the same line; articles days apart share
+    only page furniture."""
+    if len(candidates) <= PER_OUTLET:
+        return candidates
+    last = len(candidates) - 1
+    return [candidates[0], candidates[last // 2], candidates[last]]
+
+
+def sampled(http: Http) -> list[tuple[str, str | None, str | None]]:
+    """Three articles in last month's archive of each built-in outlet, spread over the month.
+    Each row is an outlet, a URL and, for an outlet whose archive couldn't be read, no URL but
+    the reason."""
     last_month = Month.of(today()).previous()
-    rows: list[tuple[str, str]] = []
-    for outlet in builtin():
-        if isinstance(outlet, MonthlySitemap):
+    rows: list[tuple[str, str | None, str | None]] = []
+    for outlet in builtin(include_opt_in=True):
+        try:
             found = scan(outlet, http, last_month.start, last_month.next().start, today=today())
-            candidates = sorted(
-                found,
-                key=lambda c: c.lastmod or datetime.min.replace(tzinfo=ISTANBUL),
-                reverse=True,
+            candidates = spread(
+                sorted(
+                    found,
+                    key=lambda c: c.lastmod or datetime.min.replace(tzinfo=ISTANBUL),
+                    reverse=True,
+                )
             )
-        else:
-            week = today() - timedelta(days=7)
-            found = scan(outlet, http, week, today() + timedelta(days=1), ["deprem"], today=today())
-            candidates = list(found)
-        rows += [(outlet.id, candidate.url) for candidate in candidates[:PER_OUTLET]]
-    return pd.DataFrame(rows, columns=["outlet", "url"], dtype="string")
+        except OutletFailed as failure:
+            rows.append((outlet.id, None, failure.reason))
+            continue
+        rows += [(outlet.id, candidate.url, None) for candidate in candidates[:PER_OUTLET]]
+    return rows
+
+
+@pytest.fixture(scope="module")
+def pages(http: Http) -> list[Page]:
+    """Every sampled article, downloaded once and read both ways. An outlet whose archive
+    couldn't be read gives one page that wasn't downloaded, so the checks name it."""
+    read: list[Page] = []
+    for outlet_id, url, reason in sampled(http):
+        if url is None:
+            unread = Extracted(error=f"its archive couldn't be read: {reason}")
+            read.append(Page(outlet_id, "", unread, PageFacts(), downloaded=False))
+            continue
+        outlet = get(outlet_id)
+        try:
+            page = http.get(
+                url,
+                allowed_hosts=outlet.hosts,
+                accept=HTML_ACCEPT,
+                cache=CachePolicy(no_store=True),
+            )
+        except HttpError as error:
+            failed = Extracted(error=describe(error))
+            read.append(Page(outlet_id, url, failed, PageFacts(), downloaded=False))
+            continue
+        html = page.text()
+        read.append(Page(outlet_id, url, extract(html, page.url, outlet.name), read_page(html)))
+    return read
+
+
+def by_outlet(pages: list[Page]) -> dict[str, list[Page]]:
+    grouped: defaultdict[str, list[Page]] = defaultdict(list)
+    for page in pages:
+        grouped[page.outlet].append(page)
+    return grouped
 
 
 @pytest.mark.live
-def test_at_least_nine_in_ten_articles_give_a_headline_a_date_and_text(http: Http) -> None:
-    fetched = fetch(newest(http))
-    articles = pd.concat([fetched.articles, fetched.outside], ignore_index=True)
-    complete = (
-        articles["title"].notna()
-        & articles["published"].notna()
-        & (articles["text"].str.len() >= MIN_CHARACTERS).fillna(False)
-    )
-    print(fetched)
-    missing = articles.loc[~complete, ["outlet", "url", "error"]].to_dict("records")
-    assert complete.mean() >= MIN_SHARE, missing
+def test_pages_give_a_headline_a_time_and_text_overall_and_outlet_by_outlet(
+    pages: list[Page],
+) -> None:
+    missing = [(p.outlet, p.url, p.found.error) for p in pages if not p.complete]
+    assert sum(p.complete for p in pages) >= MIN_SHARE * len(pages), missing
+    short = {
+        outlet: sum(p.complete for p in sampled)
+        for outlet, sampled in by_outlet(pages).items()
+        if sum(p.complete for p in sampled) < min(MIN_OF_THREE, len(sampled))
+    }
+    assert short == {}, missing
+    unsampled = {outlet.id for outlet in builtin(include_opt_in=True)} - set(by_outlet(pages))
+    assert unsampled == set(), "no article in last month's archive"
+
+
+@pytest.mark.live
+def test_json_ld_gives_the_article_on_two_of_each_outlets_three_pages(pages: list[Page]) -> None:
+    # Otherwise fetch would fall back without anyone noticing. Pages that couldn't be downloaded
+    # are the first test's to report.
+    downloaded = [p for p in pages if p.downloaded]
+    without = {
+        outlet: sum(not p.facts.article for p in sampled)
+        for outlet, sampled in by_outlet(downloaded).items()
+        if outlet not in WITHOUT_JSON_LD
+        and sum(p.facts.article for p in sampled) < min(MIN_OF_THREE, len(sampled))
+    }
+    assert without == {}
+
+
+@pytest.mark.live
+def test_headlines_and_times_are_what_the_pages_state(pages: list[Page]) -> None:
+    other_headline = [
+        (p.outlet, p.url)
+        for p in pages
+        if p.found.title
+        and (p.facts.headline or p.facts.h1s)
+        and p.found.title not in {p.facts.headline, *p.facts.h1s}
+    ]
+    other_time = [
+        (p.outlet, p.url)
+        for p in pages
+        if p.facts.published
+        and p.found.published
+        and p.found.published.replace(second=0, microsecond=0)
+        != p.facts.published.replace(second=0, microsecond=0)
+    ]
+    assert (other_headline, other_time) == ([], [])
+
+
+@pytest.mark.live
+def test_a_lead_the_page_shows_is_in_the_text(pages: list[Page]) -> None:
+    without = [
+        (p.outlet, p.url)
+        for p in pages
+        if p.facts.lead
+        and p.found.text
+        and p.facts.lead not in p.found.text
+        and not any(alike(p.facts.lead, line) for line in p.found.text.split("\n"))
+    ]
+    assert without == []
+
+
+@pytest.mark.live
+def test_no_line_repeats_on_every_page_of_an_outlet(pages: list[Page]) -> None:
+    # Such a line would be page furniture (a share prompt, a sign-up line) leaking into texts.
+    # Only the outlet and how many lines are named: never the lines.
+    repeated: dict[str, int] = {}
+    for outlet, sampled in by_outlet(pages).items():
+        texts = [p.found.text for p in sampled if p.found.text]
+        if len(texts) < PER_OUTLET:
+            continue
+        lines = [
+            {line for line in text.split("\n") if len(line.split()) >= FURNITURE_WORDS}
+            for text in texts
+        ]
+        common = set.intersection(*lines)
+        if common:
+            repeated[outlet] = len(common)
+    assert repeated == {}
 
 
 @pytest.mark.live
@@ -98,3 +242,16 @@ def test_three_wire_stories_each_form_one_copy_group() -> None:
         assert pd.notna(groups[first]), first
         assert groups[first] == groups[second], (first, second)
     assert len({groups[first] for first, _ in COPIES}) == len(COPIES)
+
+
+def test_the_sample_spreads_over_the_month_and_keeps_short_lists() -> None:
+    month = Month(2026, 10)
+    candidates = [
+        Candidate(outlet="x", url=f"https://x.com.tr/{number}", month=month) for number in range(10)
+    ]
+    assert [c.url for c in spread(candidates)] == [
+        "https://x.com.tr/0",
+        "https://x.com.tr/4",
+        "https://x.com.tr/9",
+    ]
+    assert spread(candidates[:2]) == candidates[:2]
