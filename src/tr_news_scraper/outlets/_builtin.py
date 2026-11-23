@@ -122,6 +122,18 @@ DIKEN = ChunkedSitemap(
 )
 
 
+EVRENSEL = ChunkedSitemap(
+    id="evrensel",
+    name="Evrensel",
+    index="https://www.evrensel.net/sitemap.xml",
+    chunk_file=r"/sitemap/haber/(?P<n>\d+)\.xml$",
+    chunk_order="oldest-first",
+    entry_order="newest-first",
+    earliest=Month(2011, 2),
+    notes="Numbered files of 10,000 articles each, back to February 2011. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -157,6 +169,7 @@ BUILTIN: tuple[Outlet, ...] = (
     AYDINLIK,
     BLOOMBERG_HT,
     DIKEN,
+    EVRENSEL,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()

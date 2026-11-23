@@ -24,6 +24,7 @@ OUTLETS = (
     "cumhuriyet",
     "diken",
     "euronews-tr",
+    "evrensel",
     "milliyet",
     "sozcu",
     "star",

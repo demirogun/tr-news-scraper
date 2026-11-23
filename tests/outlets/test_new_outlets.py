@@ -46,6 +46,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.diken.com.tr/bakanlik-destekliyor-muslum-gursesin-felsefesi-z-kusagi-ile-bulusacak/",
         "https://www.diken.com.tr/iyi-partide-rahatsizlik-haberler-nereden-cikti-anlamadik/",
     ),
+    (
+        "evrensel",
+        Month(2023, 2),
+        26,
+        "https://www.evrensel.net/haber/480910/ozgur-gundem-nobetci-yayin-yonetmenligi-davasi-25-mayisa-ertelendi",
+        "https://www.evrensel.net/haber/483656/izmir-korfezinde-4-1-buyuklugunde-deprem-meydana-geldi",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

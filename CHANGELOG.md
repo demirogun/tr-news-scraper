@@ -14,6 +14,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **Aydınlık** (`aydinlik`): every month since April 2011.
   - **Bloomberg HT** (`bloomberg-ht`): back to September 2010.
   - **Diken** (`diken`): back to December 2013.
+  - **Evrensel** (`evrensel`): back to February 2011.
 - Opt-in outlets: built in, but read only when you name them. `builtin(include_opt_in=True)` lists
   every built-in outlet, the opt-in ones last; `get()` finds any of them by id; and `coverage()`
   lists them all, with a new `default` column that says which ones `search()` reads without being

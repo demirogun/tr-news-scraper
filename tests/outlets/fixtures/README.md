@@ -64,3 +64,8 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `diken/chunk-0179.xml` | https://www.diken.com.tr/post-sitemap78.xml |
 | `diken/chunk-0180.xml` | https://www.diken.com.tr/post-sitemap77.xml |
 | `diken/chunk-0256.xml` | https://www.diken.com.tr/post-sitemap.xml |
+| `evrensel/index.xml` | https://www.evrensel.net/sitemap.xml |
+| `evrensel/chunk-0001.xml` | https://www.evrensel.net/sitemap/haber/1.xml |
+| `evrensel/chunk-0046.xml` | https://www.evrensel.net/sitemap/haber/46.xml |
+| `evrensel/chunk-0047.xml` | https://www.evrensel.net/sitemap/haber/47.xml |
+| `evrensel/chunk-0062.xml` | https://www.evrensel.net/sitemap/haber/62.xml |

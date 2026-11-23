@@ -41,6 +41,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 | `cumhuriyet/page.html` | https://www.cumhuriyet.com.tr/bilim-teknoloji/abdli-uzay-sirketi-depremin-uydu-goruntulerini-yayinladi-2049504 | desk |
 | `diken/page.html` | https://www.diken.com.tr/simdi-reklamlar-bakan-koca-deprem-bolgesinde-propaganda-filmi-cekti/ | fictional |
 | `euronews-tr/page.html` | https://tr.euronews.com/2023/02/28/kahramanmaras-depremleri-sonrasi-suriyede-22-kisi-kolera-nedeniyle-hayatini-kaybetti | none |
+| `evrensel/page.html` | https://www.evrensel.net/haber/481019/afadin-duzce-depreminde-sinifta-kaldigi-ortaya-cikti | desk |
 | `milliyet/page.html` | https://www.milliyet.com.tr/galeri/son-depremler-listesi-7-kasim-az-once-deprem-mi-oldu-nerede-kac-siddetinde-afad-kandilli-deprem-sorgulama-7695901 | fictional |
 | `sozcu/page.html` | https://www.sozcu.com.tr/hatay-da-4-1-buyuklugunde-deprem-p55330 | desk |
 | `star/page.html` | https://www.star.com.tr/yasam/vatandaslar-gozlerine-inanamadi-depremin-ardindan-camura-bulandi-haber-1767589/ | agency |

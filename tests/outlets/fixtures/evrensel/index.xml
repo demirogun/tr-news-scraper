@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <sitemap>
+            <loc>https://www.evrensel.net/sitemap/genel.xml</loc>
+        </sitemap>
+        <sitemap>
+<loc>https://www.evrensel.net/sitemap/haber/62.xml</loc>
+</sitemap>
+<sitemap>
+<loc>https://www.evrensel.net/sitemap/haber/47.xml</loc>
+</sitemap>
+<sitemap>
+<loc>https://www.evrensel.net/sitemap/haber/46.xml</loc>
+</sitemap>
+<sitemap>
+<loc>https://www.evrensel.net/sitemap/haber/1.xml</loc>
+</sitemap>
+        <sitemap>
+            <loc>https://www.evrensel.net/sitemap/daily.xml</loc>
+        </sitemap>
+        <sitemap>
+            <loc>https://www.evrensel.net/sitemap/yazar.xml</loc>
+        </sitemap>
+        <sitemap>
+            <loc>https://www.evrensel.net/sitemap/yazi.xml</loc>
+        </sitemap>
+    </sitemapindex>
