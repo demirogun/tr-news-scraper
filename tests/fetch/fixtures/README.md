@@ -55,6 +55,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 | `sozcu/page.html` | https://www.sozcu.com.tr/hatay-da-4-1-buyuklugunde-deprem-p55330 | desk |
 | `sputnik-tr/page.html` | https://anlatilaninotesi.com.tr/20230202/iran-azerbaycanin-depremzedeler-icin-yardimini-kabul-etmedi-1066487967.html | desk |
 | `star/page.html` | https://www.star.com.tr/yasam/vatandaslar-gozlerine-inanamadi-depremin-ardindan-camura-bulandi-haber-1767589/ | agency |
+| `takvim/page.html` | https://www.takvim.com.tr/yasam/2023/02/03/son-dakika-deprem-osmaniyede-46-buyuklugunde-deprem-son-depremler | desk |
 | `trt-haber/page.html` | https://www.trthaber.com/haber/bilim-teknoloji/deprem-felaketinden-sonra-dijital-ikiz-teknolojisi-hizla-yayginlasiyor-750285.html | fictional |
 
 To rebuild one, save the page as UTF-8 text and run the script. Bylines named in JSON-LD or a

@@ -190,6 +190,15 @@ EXPECTED = [
         "Sputnik Türkiye",
         datetime(2023, 2, 2, 14, 26, tzinfo=ISTANBUL),
     ),
+    (
+        "takvim",
+        (
+            "Son dakika: DEPREM | Osmaniye'de 4,6 büyüklüğünde deprem | Gaziantep "
+            "ve Adana'da hissedildi!..."
+        ),
+        "AJANSLAR",
+        datetime(2023, 2, 3, 14, 17, 57, tzinfo=ISTANBUL),
+    ),
 ]
 # The pages whose lead only structured data brings back.
 LEAD_FIRST = {"aksam", "cumhuriyet", "euronews-tr", "milliyet", "sozcu", "star", "trt-haber"}

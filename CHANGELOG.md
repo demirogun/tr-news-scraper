@@ -25,6 +25,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **Özgür Kocaeli** (`ozgur-kocaeli`): a regional paper of Kocaeli, every month since September 2010.
   - **Sabah** (`sabah`): every month since November 2003.
   - **Sputnik Türkiye** (`sputnik-tr`): every month since November 2014; opt-in, because it's funded by the Russian state.
+  - **Takvim** (`takvim`): every month since February 2009.
 - Opt-in outlets: built in, but read only when you name them. `builtin(include_opt_in=True)` lists
   every built-in outlet, the opt-in ones last; `get()` finds any of them by id; and `coverage()`
   lists them all, with a new `default` column that says which ones `search()` reads without being

@@ -123,6 +123,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://anlatilaninotesi.com.tr/20230228/rus-mahkemesinden-wikipediaya-2-milyon-ruble-ceza-1067625459.html",
         "https://anlatilaninotesi.com.tr/20230201/isvec-basbakani-kristersson-duzenlenen-eylemlerin-guvenligi-karmasik-hale-getirdigini-soyledi-1066419906.html",
     ),
+    (
+        "takvim",
+        Month(2023, 2),
+        20,
+        "https://www.takvim.com.tr/galeri/yasam/deprem-duasi-turkce-arapca-okunusu-ve-anlami-deprem-aninda-okunacak-dua-zilzal-zelzele-suresi-meali-dogal-afetlerden-korunma-duasi",
+        "https://www.takvim.com.tr/guncel/2023/01/31/turkiye-ve-islam-karsiti-provokasyonlarin-merkezi-haline-gelen-isvecte-nato-panigi-buyuk-riskler",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

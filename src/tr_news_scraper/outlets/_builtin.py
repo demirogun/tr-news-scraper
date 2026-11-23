@@ -267,6 +267,16 @@ SPUTNIK_TR = MonthlySitemap(
 )
 
 
+TAKVIM = MonthlySitemap(
+    id="takvim",
+    name="Takvim",
+    index="https://www.takvim.com.tr/sitemap/post.xml",
+    month_file=_TURKUVAZ_MONTHS,
+    earliest=Month(2009, 2),
+    notes="Every month since February 2009. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -312,6 +322,7 @@ BUILTIN: tuple[Outlet, ...] = (
     OLAY,
     OZGUR_KOCAELI,
     SABAH,
+    TAKVIM,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = (SPUTNIK_TR,)
