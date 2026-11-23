@@ -58,9 +58,9 @@ def test_the_index_gives_each_listed_month_and_its_file() -> None:
         "https://www.example.com.tr/sitemaps/posts-1962-8.xml",
     )
     assert listed_months(parse(index), OUTLET) == {
-        Month(2026, 11): "https://www.example.com.tr/sitemaps/posts-2026-11.xml",
-        Month(2023, 2): "https://www.example.com.tr/sitemaps/posts-2023-2.xml",
-        Month(1962, 8): "https://www.example.com.tr/sitemaps/posts-1962-8.xml",
+        Month(2026, 11): ("https://www.example.com.tr/sitemaps/posts-2026-11.xml",),
+        Month(2023, 2): ("https://www.example.com.tr/sitemaps/posts-2023-2.xml",),
+        Month(1962, 8): ("https://www.example.com.tr/sitemaps/posts-1962-8.xml",),
     }
 
 
@@ -75,12 +75,20 @@ def test_index_entries_that_arent_month_files_are_ignored() -> None:
     assert list(listed_months(parse(index), OUTLET)) == [FEBRUARY]
 
 
-def test_a_month_listed_twice_keeps_its_first_file() -> None:
+def test_a_month_may_list_several_files_kept_in_index_order() -> None:
     index = index_of(
         "https://www.example.com.tr/sitemaps/posts-2023-2.xml",
+        "https://www.example.com.tr/sitemaps/posts-2023-3.xml",
         "https://www.example.com.tr/sitemaps/posts-2023-02.xml",
+        "https://www.example.com.tr/sitemaps/posts-2023-2.xml",
     )
-    assert listed_months(parse(index), OUTLET)[FEBRUARY].endswith("posts-2023-2.xml")
+    assert listed_months(parse(index), OUTLET) == {
+        FEBRUARY: (
+            "https://www.example.com.tr/sitemaps/posts-2023-2.xml",
+            "https://www.example.com.tr/sitemaps/posts-2023-02.xml",
+        ),
+        Month(2023, 3): ("https://www.example.com.tr/sitemaps/posts-2023-3.xml",),
+    }
 
 
 def test_an_index_without_a_namespace_is_read_too() -> None:
@@ -95,17 +103,17 @@ def test_a_list_of_urls_isnt_an_index() -> None:
 
 def test_planning_reads_listed_months_and_explains_the_rest() -> None:
     listed = {
-        Month(2023, 1): "jan.xml",
-        Month(2023, 3): "mar.xml",
-        Month(2023, 5): "may.xml",
+        Month(2023, 1): ("jan.xml",),
+        Month(2023, 3): ("mar.xml", "mar-1.xml"),
+        Month(2023, 5): ("may.xml",),
     }
     assert plan_months(listed, date(2022, 12, 15), date(2023, 6, 10)) == [
         Gap("before-archive", "the archive starts in 2023-01", month=Month(2022, 12)),
-        Read(Month(2023, 1), "jan.xml"),
+        Read(Month(2023, 1), ("jan.xml",)),
         Gap("not-in-archive", "the archive has no file for 2023-02", month=Month(2023, 2)),
-        Read(Month(2023, 3), "mar.xml"),
+        Read(Month(2023, 3), ("mar.xml", "mar-1.xml")),
         Gap("not-in-archive", "the archive has no file for 2023-04", month=Month(2023, 4)),
-        Read(Month(2023, 5), "may.xml"),
+        Read(Month(2023, 5), ("may.xml",)),
         Gap("after-archive", "the archive ends in 2023-05", month=Month(2023, 6)),
     ]
 

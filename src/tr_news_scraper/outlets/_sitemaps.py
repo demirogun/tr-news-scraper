@@ -1,4 +1,4 @@
-"""Reading monthly sitemaps: the months an index lists, and the articles in one month's file.
+"""Reading monthly sitemaps: the months an index lists, and the articles in a month's files.
 
 Everything here works on parsed documents, so it never touches the network.
 """
@@ -6,7 +6,7 @@ Everything here works on parsed documents, so it never touches the network.
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 
@@ -25,10 +25,10 @@ class SitemapError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class Read:
-    """A month whose file the index lists, so it will be read."""
+    """A month whose files the index lists, so they will be read, in index order."""
 
     month: Month
-    url: str
+    urls: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,14 +41,16 @@ class MonthFile:
     """Entries skipped: no URL, not HTTPS, or not on the outlet's hosts."""
 
 
-def listed_months(index: etree._Element, outlet: MonthlySitemap) -> dict[Month, str]:
-    """The months the sitemap index lists, each with its file's URL (whitespace stripped).
+def listed_months(index: etree._Element, outlet: MonthlySitemap) -> dict[Month, tuple[str, ...]]:
+    """The months the sitemap index lists, each with its files' URLs in index order (whitespace
+    stripped).
 
-    Entries that don't match the outlet's ``month_file`` pattern are ignored, as are impossible
-    months. When the index lists a month twice, the first entry wins.
+    A month may list several files: parts of one long list, or one file per section (O3a). The
+    same URL listed twice counts once. Entries that don't match the outlet's ``month_file``
+    pattern are ignored, as are impossible months.
     """
     prefix = _expect(index, "sitemapindex", "a sitemap index")
-    months: dict[Month, str] = {}
+    months: dict[Month, list[str]] = {}
     for entry in index.iterchildren(f"{prefix}sitemap"):
         url = (entry.findtext(f"{prefix}loc") or "").strip()
         found = outlet.pattern.search(url) if url else None
@@ -58,11 +60,13 @@ def listed_months(index: etree._Element, outlet: MonthlySitemap) -> dict[Month, 
             month = Month(int(found["year"]), int(found["month"]))
         except ValueError:
             continue
-        months.setdefault(month, url)
-    return months
+        files = months.setdefault(month, [])
+        if url not in files:
+            files.append(url)
+    return {month: tuple(files) for month, files in months.items()}
 
 
-def plan_months(listed: Mapping[Month, str], start: date, end: date) -> list[Read | Gap]:
+def plan_months(listed: Mapping[Month, Sequence[str]], start: date, end: date) -> list[Read | Gap]:
     """For each month the range ``[start, end)`` touches: the file to read, or why there's none.
 
     A month the index doesn't list is never requested; outlets may answer an error for it.
@@ -76,7 +80,7 @@ def plan_months(listed: Mapping[Month, str], start: date, end: date) -> list[Rea
     steps: list[Read | Gap] = []
     for month in Month.span(start, end):
         if month in listed:
-            steps.append(Read(month, listed[month]))
+            steps.append(Read(month, tuple(listed[month])))
         elif month < oldest:
             steps.append(Gap("before-archive", f"the archive starts in {oldest}", month=month))
         elif month > newest:

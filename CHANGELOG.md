@@ -21,6 +21,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     publisher is left out, and so are email addresses. Desks and agencies stay.
   - Because extraction changed, the articles `fetch()` kept from 1.0 are extracted again, once:
     their pages are downloaded one more time on the next `fetch()`.
+- A monthly sitemap index may list several files for one month: parts of one long list, or one
+  file per section. `search()` now reads them all, in the index's order, and keeps each URL once;
+  1.0 read only the first. A file that can't be read is a gap of its own in the report, and the
+  month's other files still count. The health check reads up to three of last month's files to
+  find one with entries.
 
 ### Fixed
 - `published` keeps the page's own UTC offset. 1.0 read every time as Türkiye's, so a page that said

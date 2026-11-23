@@ -1,7 +1,7 @@
 """Health checks: is each outlet's archive still where its definition says, and still readable?
 
 The weekly live check and ``coverage(check=True)`` run these. A check reads the archive fresh,
-not from the cache, and costs two requests.
+not from the cache, and costs two to four requests.
 """
 
 from __future__ import annotations
@@ -13,8 +13,10 @@ from tr_news_scraper._http import Http
 from tr_news_scraper.outlets._model import Month, MonthlySitemap, Outlet, SiteSearch
 from tr_news_scraper.outlets._scan import HTML_ACCEPT, READ_ERRORS, XML_ACCEPT, describe
 from tr_news_scraper.outlets._search import Page, page_url, parse_page
-from tr_news_scraper.outlets._sitemaps import listed_months, read_month_file
+from tr_news_scraper.outlets._sitemaps import MonthFile, listed_months, read_month_file
 
+MAX_FILES = 3
+"""Monthly sitemaps: the most of last month's files read, in index order, to find entries."""
 MIN_SEARCH_RESULTS = 10
 MAX_SEARCH_AGE_DAYS = 14
 
@@ -31,7 +33,8 @@ class Health:
     newest: Month | None = None
     """Monthly sitemaps: the last month the index lists."""
     sample: int = 0
-    """Candidates in last month's file, or kept results on page 1 of the search."""
+    """Candidates in the first of last month's files that has entries, or kept results on
+    page 1 of the search."""
 
     @property
     def ok(self) -> bool:
@@ -62,31 +65,41 @@ def _check_sitemaps(outlet: MonthlySitemap, http: Http, today: date) -> Health:
     if outlet.earliest is not None and oldest > outlet.earliest:
         problems.append(f"its index now starts in {oldest}, after the declared {outlet.earliest}")
     sample = 0
-    url = listed.get(last_month)
-    if url is None:
+    files = listed.get(last_month, ())
+    if not files:
         problems.append(f"its index doesn't list last month ({last_month})")
-    else:
-        try:
-            response = http.get(url, allowed_hosts=outlet.hosts, accept=XML_ACCEPT)
-            found = read_month_file(response.xml(), outlet, last_month, url)
-        except READ_ERRORS as error:
-            problems.append(f"the file for {last_month} couldn't be read: {describe(error)}")
-        else:
-            sample = len(found.candidates)
-            if found.entries == 0:
-                problems.append(f"the file for {last_month} is empty")
-            elif found.dropped * 100 > found.entries:
-                problems.append(
-                    f"{found.dropped} of {found.entries} entries in the file for {last_month} "
-                    "aren't HTTPS URLs on its hosts"
-                )
-            titled = sum(1 for candidate in found.candidates if candidate.title)
-            if outlet.titles == "image" and titled * 2 < len(found.candidates):
-                problems.append(
-                    f"only {titled} of {len(found.candidates)} entries in the file for "
-                    f"{last_month} have a headline"
-                )
+        return Health(outlet.id, tuple(problems), oldest, newest, sample)
+    urls = iter(files[:MAX_FILES])
+    try:
+        found = _read_file(outlet, http, last_month, next(urls))
+        read = 1
+        while not found.entries and (url := next(urls, None)) is not None:
+            found = _read_file(outlet, http, last_month, url)
+            read += 1
+    except READ_ERRORS as error:
+        problems.append(f"the file for {last_month} couldn't be read: {describe(error)}")
+        return Health(outlet.id, tuple(problems), oldest, newest, sample)
+    sample = len(found.candidates)
+    if found.entries == 0:
+        files_read = "the file" if read == 1 else f"the first {read} files"
+        problems.append(f"{files_read} for {last_month} {'is' if read == 1 else 'are'} empty")
+    elif found.dropped * 100 > found.entries:
+        problems.append(
+            f"{found.dropped} of {found.entries} entries in the file for {last_month} "
+            "aren't HTTPS URLs on its hosts"
+        )
+    titled = sum(1 for candidate in found.candidates if candidate.title)
+    if outlet.titles is not None and titled * 2 < len(found.candidates):
+        problems.append(
+            f"only {titled} of {len(found.candidates)} entries in the file for "
+            f"{last_month} have a headline"
+        )
     return Health(outlet.id, tuple(problems), oldest, newest, sample)
+
+
+def _read_file(outlet: MonthlySitemap, http: Http, month: Month, url: str) -> MonthFile:
+    response = http.get(url, allowed_hosts=outlet.hosts, accept=XML_ACCEPT)
+    return read_month_file(response.xml(), outlet, month, url)
 
 
 def _check_search(outlet: SiteSearch, http: Http, today: date, query: str) -> Health:

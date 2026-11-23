@@ -45,6 +45,8 @@ from tr_news_scraper.outlets._search import (
     results_in_range,
 )
 from tr_news_scraper.outlets._sitemaps import (
+    MonthFile,
+    Read,
     SitemapError,
     listed_months,
     plan_months,
@@ -116,7 +118,7 @@ class Scan:
         self.gaps: list[Gap] = []
         """What wasn't read, and why."""
         self.months: list[Month] = []
-        """The archive months read in full (monthly sitemaps)."""
+        """The archive months whose files were all read (monthly sitemaps)."""
         self.dropped = 0
         """Entries skipped for not being HTTPS URLs on the outlet's hosts."""
         self._http = http
@@ -159,25 +161,48 @@ class Scan:
             if isinstance(step, Gap):
                 self.gaps.append(step)
                 continue
-            self._attempts += 1
-            try:
-                response = self._get(step.url, month_ttl(step.month, self._today), XML_ACCEPT)
-                found = read_month_file(response.xml(), outlet, step.month, step.url)
-            except READ_ERRORS as error:
-                self._fail(error, f"the file for {step.month}", month=step.month, url=step.url)
+            yield from self._month(outlet, step)
+
+    def _month(self, outlet: MonthlySitemap, step: Read) -> Iterator[Candidate]:
+        """Every file the month lists, in index order, each URL once (O3a). The month counts
+        as read only when all its files were."""
+        seen: set[str] = set()
+        complete = True
+        for number, url in enumerate(step.urls, start=1):
+            part = "the file" if len(step.urls) == 1 else f"file {number} of {len(step.urls)}"
+            found = self._read_file(outlet, step.month, url, f"{part} for {step.month}")
+            if found is None:
+                complete = False
                 continue
-            self._successes += 1
+            for candidate in found.candidates:
+                if candidate.url not in seen:
+                    seen.add(candidate.url)
+                    yield candidate
+        if complete:
             self.months.append(step.month)
-            self.dropped += found.dropped
-            logger.debug(
-                "%s: %s has %d entries, kept %d, dropped %d",
-                outlet.name,
-                step.url,
-                found.entries,
-                len(found.candidates),
-                found.dropped,
-            )
-            yield from found.candidates
+
+    def _read_file(
+        self, outlet: MonthlySitemap, month: Month, url: str, what: str
+    ) -> MonthFile | None:
+        """One sitemap file's candidates, or ``None`` after recording why it couldn't be read."""
+        self._attempts += 1
+        try:
+            response = self._get(url, month_ttl(month, self._today), XML_ACCEPT)
+            found = read_month_file(response.xml(), outlet, month, url)
+        except READ_ERRORS as error:
+            self._fail(error, what, month=month, url=url)
+            return None
+        self._successes += 1
+        self.dropped += found.dropped
+        logger.debug(
+            "%s: %s has %d entries, kept %d, dropped %d",
+            outlet.name,
+            url,
+            found.entries,
+            len(found.candidates),
+            found.dropped,
+        )
+        return found
 
     def _site_search(self, outlet: SiteSearch) -> Iterator[Candidate]:
         queries: dict[str, str] = {}

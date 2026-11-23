@@ -306,3 +306,72 @@ def test_dropped_entries_are_counted_and_reported(
     assert [c.url for c in found] == [f"{BASE}/gundem/a-1"]
     assert found.dropped == 1
     assert "skipped 1 entries that weren't HTTPS URLs on its hosts" in caplog.text
+
+
+def part_url(month: Month, part: int) -> str:
+    suffix = "" if part == 0 else f"-{part}"
+    return f"{BASE}/sitemaps/posts-{month.year}-{month.month}{suffix}.xml"
+
+
+PARTS = MonthlySitemap(
+    id="ornek",
+    name="Örnek",
+    index=INDEX,
+    month_file=r"/sitemaps/posts-(?P<year>\d{4})-(?P<month>\d{1,2})(?:-\d+)?\.xml$",
+)
+
+
+def listing(*locs: str) -> str:
+    entries = "".join(f"<url><loc>{BASE}/gundem/{loc}</loc></url>" for loc in locs)
+    return f'<?xml version="1.0"?><urlset {NS}>{entries}</urlset>'
+
+
+def serve_parts(requests_mock: Mocker, **responses: Any) -> None:
+    """February 2023 in three parts, listed between January and March; ``responses``
+    overrides a part's response by name: ``first``, ``second`` or ``third``."""
+    locs = [part_url(FEB, 0), part_url(FEB, 1), part_url(FEB, 2)]
+    entries = "".join(f"<sitemap><loc>{loc}</loc></sitemap>" for loc in [file_url(JAN), *locs])
+    index = f'<?xml version="1.0"?><sitemapindex {NS}>{entries}</sitemapindex>'
+    requests_mock.get(INDEX, text=index)
+    defaults = {
+        "first": {"text": listing("a-1", "b-2")},
+        "second": {"text": listing("c-3", "a-1", "d-4")},
+        "third": {"text": listing("e-5")},
+    }
+    for name, loc in zip(("first", "second", "third"), locs, strict=True):
+        requests_mock.get(loc, **responses.get(name, defaults[name]))
+
+
+def test_every_file_a_month_lists_is_read_in_index_order(http: Http, requests_mock: Mocker) -> None:
+    serve_parts(requests_mock)
+    found = scan(PARTS, http, date(2023, 2, 1), date(2023, 3, 1), today=TODAY)
+    expected = [f"{BASE}/gundem/{loc}" for loc in ("a-1", "b-2", "c-3", "d-4", "e-5")]
+    assert [c.url for c in found] == expected
+    assert archive_requests(requests_mock) == [
+        INDEX,
+        part_url(FEB, 0),
+        part_url(FEB, 1),
+        part_url(FEB, 2),
+    ]
+    assert (found.months, found.gaps) == ([FEB], [])
+
+
+def test_a_url_in_two_files_keeps_its_first_entry(http: Http, requests_mock: Mocker) -> None:
+    serve_parts(requests_mock)
+    candidates = list(scan(PARTS, http, date(2023, 2, 1), date(2023, 3, 1), today=TODAY))
+    [repeated] = [c for c in candidates if c.url.endswith("/a-1")]
+    assert repeated.source == part_url(FEB, 0)
+
+
+def test_a_file_that_fails_is_a_gap_naming_it_and_the_others_still_count(
+    http: Http, requests_mock: Mocker
+) -> None:
+    serve_parts(requests_mock, second={"status_code": 404})
+    found = scan(PARTS, http, date(2023, 2, 1), date(2023, 3, 1), today=TODAY)
+    assert [c.url for c in found] == [f"{BASE}/gundem/{loc}" for loc in ("a-1", "b-2", "e-5")]
+    [gap] = found.gaps
+    assert (gap.reason, gap.month, gap.url) == ("failed", FEB, part_url(FEB, 1))
+    assert gap.detail == (
+        "file 2 of 3 for 2023-02 couldn't be read: the request failed (HTTP 404, 1 attempt)"
+    )
+    assert found.months == []
