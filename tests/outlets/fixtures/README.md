@@ -84,3 +84,12 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `mynet/2023-02-1.xml` | https://www.mynet.com/sitemaps/monthly/egitim/2023-02.xml |
 | `mynet/2023-02-2.xml` | https://www.mynet.com/sitemaps/monthly/finans/2023-02.xml |
 | `mynet/2023-02-3.xml` | https://www.mynet.com/sitemaps/monthly/haber/2023-02.xml |
+| `ntv/index.xml` | https://www.ntv.com.tr/story-sitemap |
+| `ntv/chunk-0001.xml` | https://www.ntv.com.tr/story-sitemap/1 |
+| `ntv/chunk-0643.xml` | https://www.ntv.com.tr/story-sitemap/643 |
+| `ntv/chunk-0644.xml` | https://www.ntv.com.tr/story-sitemap/644 |
+| `ntv/chunk-0645.xml` | https://www.ntv.com.tr/story-sitemap/645 |
+| `ntv/chunk-0646.xml` | https://www.ntv.com.tr/story-sitemap/646 |
+| `ntv/chunk-0647.xml` | https://www.ntv.com.tr/story-sitemap/647 |
+| `ntv/chunk-0648.xml` | https://www.ntv.com.tr/story-sitemap/648 |
+| `ntv/chunk-0952.xml` | https://www.ntv.com.tr/story-sitemap/952 |

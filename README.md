@@ -133,6 +133,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 | Habertürk | `haberturk` | monthly sitemap | 2006-09 | no | yes |
 | Kısa Dalga | `kisa-dalga` | chunked sitemap | 2020-06 | no | yes |
 | Mynet | `mynet` | monthly sitemap | 2013-03 | no | yes |
+| NTV | `ntv` | chunked sitemap | 2008-12 | no | yes |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
 - **Euronews Türkçe:** Matched on URLs only: the titles in its sitemaps describe photos, not articles.
@@ -150,6 +151,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Habertürk:** Every month since September 2006. A month's file lists the articles last edited that month, so a scan also reads the month after and keeps its articles by number. No headlines.
 - **Kısa Dalga:** Four large files of up to 40,000 articles each, back to June 2020. No headlines.
 - **Mynet:** A portal that carries much agency copy, in one file per section and month: every month since August 2014, scattered months before. No headlines.
+- **NTV:** Numbered files of about 1,000 articles each, back to December 2008. No headlines.
 
 Every outlet's archive is allowed by its robots.txt. Where an archive has no headlines, articles
 are matched on their URLs; after `fetch()`, `text_matched` shows which keywords each text names.

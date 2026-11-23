@@ -30,6 +30,7 @@ OUTLETS = (
     "kisa-dalga",
     "milliyet",
     "mynet",
+    "ntv",
     "sozcu",
     "star",
     "trt-haber",

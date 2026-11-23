@@ -186,6 +186,18 @@ MYNET = MonthlySitemap(
 )
 
 
+NTV = ChunkedSitemap(
+    id="ntv",
+    name="NTV",
+    index="https://www.ntv.com.tr/story-sitemap",
+    chunk_file=r"/story-sitemap/(?P<n>\d+)$",
+    chunk_order="oldest-first",
+    entry_order="newest-first",
+    earliest=Month(2008, 12),
+    notes="Numbered files of about 1,000 articles each, back to December 2008. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -226,6 +238,7 @@ BUILTIN: tuple[Outlet, ...] = (
     HABERTURK,
     KISA_DALGA,
     MYNET,
+    NTV,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()
