@@ -138,6 +138,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 | Olay | `olay` | chunked sitemap | 2014-09 | no | yes |
 | Özgür Kocaeli | `ozgur-kocaeli` | monthly sitemap | 2006-01 | no | yes |
 | Sabah | `sabah` | monthly sitemap | 2003-11 | no | yes |
+| Sputnik Türkiye | `sputnik-tr` | monthly sitemap | 2014-11 | no | no |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
 - **Euronews Türkçe:** Matched on URLs only: the titles in its sitemaps describe photos, not articles.
@@ -160,6 +161,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Olay:** A regional paper of Bursa. Numbered files of about 1,000 articles each, the newest first, back to September 2014. No headlines.
 - **Özgür Kocaeli:** A regional paper of Kocaeli, the 1999 earthquake's area. Every month since September 2010; only scattered months before. No headlines.
 - **Sabah:** Every month since November 2003, the busiest in parts; about 3% of its articles are on finans.sabah.com.tr. No headlines.
+- **Sputnik Türkiye:** Opt-in: funded by the Russian state, so it's read only when you name it. Every month since November 2014. No headlines.
 
 Every outlet's archive is allowed by its robots.txt. Where an archive has no headlines, articles
 are matched on their URLs; after `fetch()`, `text_matched` shows which keywords each text names.

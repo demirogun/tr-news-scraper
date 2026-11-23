@@ -53,6 +53,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 | `ozgur-kocaeli/page.html` | https://www.ozgurkocaeli.com.tr/haber/13963045/kahramanmarasta-77-buyuklugunde-deprem | none |
 | `sabah/page.html` | https://www.sabah.com.tr/yasam/deprem-odemelerinin-yuzde-80i-tamamlandi-6339963 | fictional |
 | `sozcu/page.html` | https://www.sozcu.com.tr/hatay-da-4-1-buyuklugunde-deprem-p55330 | desk |
+| `sputnik-tr/page.html` | https://anlatilaninotesi.com.tr/20230202/iran-azerbaycanin-depremzedeler-icin-yardimini-kabul-etmedi-1066487967.html | desk |
 | `star/page.html` | https://www.star.com.tr/yasam/vatandaslar-gozlerine-inanamadi-depremin-ardindan-camura-bulandi-haber-1767589/ | agency |
 | `trt-haber/page.html` | https://www.trthaber.com/haber/bilim-teknoloji/deprem-felaketinden-sonra-dijital-ikiz-teknolojisi-hizla-yayginlasiyor-750285.html | fictional |
 

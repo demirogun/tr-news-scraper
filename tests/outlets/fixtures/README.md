@@ -110,3 +110,5 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `sabah/index.xml` | https://www.sabah.com.tr/sitemap/post.xml |
 | `sabah/2023-02-1.xml` | https://www.sabah.com.tr/sitemaparchives/post/2023-2-1.xml |
 | `sabah/2023-02-2.xml` | https://www.sabah.com.tr/sitemaparchives/post/2023-2.xml |
+| `sputnik-tr/index.xml` | https://anlatilaninotesi.com.tr/sitemap_article_index.xml |
+| `sputnik-tr/2023-02.xml` | https://anlatilaninotesi.com.tr/sitemap_article.xml?date_start=20230201&date_end=20230228 |

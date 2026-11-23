@@ -254,6 +254,19 @@ SABAH = MonthlySitemap(
 )
 
 
+SPUTNIK_TR = MonthlySitemap(
+    id="sputnik-tr",
+    name="Sputnik Türkiye",
+    index="https://anlatilaninotesi.com.tr/sitemap_article_index.xml",
+    month_file=r"/sitemap_article\.xml\?date_start=(?P<year>\d{4})(?P<month>\d{2})01&",
+    earliest=Month(2014, 11),
+    notes=(
+        "Opt-in: funded by the Russian state, so it's read only when you name it. Every month "
+        "since November 2014. No headlines."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -301,7 +314,7 @@ BUILTIN: tuple[Outlet, ...] = (
     SABAH,
 )
 """The default outlets: search reads them unless told otherwise."""
-OPT_IN: tuple[Outlet, ...] = ()
+OPT_IN: tuple[Outlet, ...] = (SPUTNIK_TR,)
 """Built-in outlets read only when named, so nobody gets them by surprise."""
 
 

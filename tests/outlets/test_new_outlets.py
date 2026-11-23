@@ -116,6 +116,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.sabah.com.tr/fotohaber/yasam/yusuf-suresi-okunusu-yusuf-suresi-meali-turkce-anlami-arapca-yazilisi-ve-tefsiri-d1",
         "https://www.sabah.com.tr/spor/basketbol/2023/01/31/fenerbahce-beko-olympiakosa-kaybetti",
     ),
+    (
+        "sputnik-tr",
+        Month(2023, 2),
+        20,
+        "https://anlatilaninotesi.com.tr/20230228/rus-mahkemesinden-wikipediaya-2-milyon-ruble-ceza-1067625459.html",
+        "https://anlatilaninotesi.com.tr/20230201/isvec-basbakani-kristersson-duzenlenen-eylemlerin-guvenligi-karmasik-hale-getirdigini-soyledi-1066419906.html",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

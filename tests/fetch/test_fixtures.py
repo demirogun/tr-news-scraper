@@ -36,6 +36,7 @@ OUTLETS = (
     "ozgur-kocaeli",
     "sabah",
     "sozcu",
+    "sputnik-tr",
     "star",
     "trt-haber",
 )
