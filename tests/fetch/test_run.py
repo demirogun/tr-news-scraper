@@ -128,6 +128,23 @@ def test_an_article_robots_txt_disallows_is_never_requested(
     assert page_requests(requests_mock) == 0
 
 
+def test_a_record_kept_by_1_0_is_extracted_again(http: Http, requests_mock: Mocker) -> None:
+    # 1.0 kept records under its own settings; 1.1 reads structured data first, so the page is
+    # downloaded and extracted once more (SPEC-1.1 F3h).
+    from importlib.metadata import version
+
+    old_settings = "precision, original publication date, no extensive date search, no comments"
+    old = f"trafilatura {version('trafilatura')}; {old_settings}"
+    assert old != extractor()
+    record = b'{"title": "Eski", "author": null, "published": null, "text": "Eski metin.",'
+    http.store_record(f"{old}\n{FIRST}", record + b' "fetched_at": "2026-11-08T10:00:00+03:00"}')
+    serve_page(requests_mock, FIRST, "star")
+    found = run(http, [(0, FIRST)])
+    assert (found.downloaded, found.cached) == (1, 0)
+    assert found.results[0].extracted.title != "Eski"
+    assert http.load_record(f"{extractor()}\n{FIRST}") is not None
+
+
 def test_a_damaged_record_is_read_again(http: Http, requests_mock: Mocker) -> None:
     serve_page(requests_mock, FIRST, "star")
     http.store_record(f"{extractor()}\n{FIRST}", b"not a record")

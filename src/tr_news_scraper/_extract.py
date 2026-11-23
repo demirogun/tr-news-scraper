@@ -1,7 +1,9 @@
-"""An article page's headline, byline, publication time and text, read with trafilatura (internal).
+"""An article page's headline, byline, publication time and text (internal).
 
-trafilatura only ever gets HTML that ``Http`` downloaded: its own downloader is never used (F4).
-It's imported on first use, so importing the package stays light (F12).
+What the page states in its JSON-LD, ``<h1>`` and meta tags comes first; trafilatura reads the body
+and stands in for anything the page doesn't state (F3). trafilatura only ever gets HTML that
+``Http`` downloaded: its own downloader is never used (F4). It's imported on first use, so
+importing the package stays light (F12).
 """
 
 from __future__ import annotations
@@ -14,14 +16,25 @@ from datetime import datetime
 from importlib.metadata import version
 from typing import Any
 
-from tr_news_scraper.outlets._dates import ISTANBUL
+from tr_news_scraper._structured import (
+    choose_author,
+    choose_headline,
+    line,
+    read_page,
+    read_time,
+    with_lead,
+)
 
-SETTINGS = "precision, original publication date, no extensive date search, no comments"
-DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
+SETTINGS = (
+    "structured data first; precision, original publication date with its offset, "
+    "URL date last, no extensive date search, no comments"
+)
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 MAX_PAGE_CHARACTERS = 8_000_000
 """Pages above this aren't parsed. Article pages are at most about 470,000 characters."""
 ONE_PAGE_AT_A_TIME = threading.Lock()
-"""Held while trafilatura reads a page and while that page's trees are freed.
+"""Held while a page is parsed, by trafilatura and for its structured data, and while that page's
+trees are freed.
 
 trafilatura parses every page with one lxml parser, and lxml then gives every thread that uses
 it the same libxml2 string dictionary, which two threads can't safely change at once. Outlet
@@ -36,8 +49,8 @@ class Extracted:
     title: str | None = None
     author: str | None = None
     published: datetime | None = None
-    """The original publication time, in Europe/Istanbul. Midnight can mean only the day is
-    known."""
+    """The original publication time, in Europe/Istanbul, from the page's own offset. Midnight
+    can mean only the day is known."""
     text: str | None = None
     """One paragraph per line."""
     error: str | None = None
@@ -49,8 +62,12 @@ def extractor() -> str:
     return f"trafilatura {version('trafilatura')}; {SETTINGS}"
 
 
-def extract(html: str, url: str) -> Extracted:
-    """Read an article page with fetch's settings (F3, D3)."""
+def extract(html: str, url: str, outlet_name: str = "") -> Extracted:
+    """Read an article page with fetch's settings (F3, D3 as amended by SPEC-1.1 D6).
+
+    ``outlet_name`` is the outlet's display name: a headline's trailing outlet name, and an author
+    that only names the outlet, are recognized by it.
+    """
     if len(html) > MAX_PAGE_CHARACTERS:
         millions = len(html) / 1_000_000
         return Extracted(error=f"the page is too large to read ({millions:.1f} million characters)")
@@ -67,17 +84,21 @@ def extract(html: str, url: str) -> Extracted:
                 "original_date": True,
                 "extensive_search": False,
                 "outputformat": DATE_FORMAT,
+                "deferred_url_extractor": True,
             },
         )
-        if document is None:
-            return Extracted(error="no article text found")
-        found = Extracted(
-            title=_line(document.title),
-            author=_line(document.author),
-            published=_published(document.date),
-            text=_paragraphs(document.text),
-        )
+        facts = read_page(html)
+        title = author = date = body = None
+        if document is not None:
+            title, author = line(document.title), line(document.author)
+            date, body = document.date, _paragraphs(document.text)
         del document  # frees the page's lxml trees before another thread reads a page
+    found = Extracted(
+        title=choose_headline(facts, title, outlet_name),
+        author=choose_author(facts, author, outlet_name),
+        published=facts.published or read_time(date),
+        text=with_lead(body, facts.lead),
+    )
     if found.text is None:
         return Extracted(found.title, found.author, found.published, error="no article text found")
     return found
@@ -108,12 +129,6 @@ def from_json(data: bytes) -> tuple[Extracted, datetime]:
     return found, datetime.fromisoformat(record["fetched_at"])
 
 
-def _line(text: str | None) -> str | None:
-    if not text:
-        return None
-    return unicodedata.normalize("NFC", " ".join(text.split())) or None
-
-
 def _paragraphs(text: str | None) -> str | None:
     """Spaces collapsed within each line, blank lines dropped, NFC."""
     if not text:
@@ -121,15 +136,3 @@ def _paragraphs(text: str | None) -> str | None:
     lines = (" ".join(line.split()) for line in text.splitlines())
     joined = "\n".join(line for line in lines if line)
     return unicodedata.normalize("NFC", joined) or None
-
-
-def _published(text: str | None) -> datetime | None:
-    """trafilatura's date, read in Türkiye's time zone: the pages give no offset."""
-    if not text:
-        return None
-    for layout in (DATE_FORMAT, "%Y-%m-%d"):
-        try:
-            return datetime.strptime(text, layout).replace(tzinfo=ISTANBUL)
-        except ValueError:
-            continue
-    return None

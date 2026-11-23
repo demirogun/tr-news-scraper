@@ -138,7 +138,7 @@ def _read(
     kind = page.headers.get("content-type", "").partition(";")[0].strip().lower()
     if kind and kind not in HTML_TYPES:
         return Fetched(Extracted(error=f"it isn't a web page ({kind})"), page.fetched_at)
-    extracted = extract(page.text(), page.url)
+    extracted = extract(page.text(), page.url, outlet.name)
     if extracted.error is None:
         http.store_record(name, to_json(extracted, page.fetched_at))
     return Fetched(extracted, page.fetched_at)

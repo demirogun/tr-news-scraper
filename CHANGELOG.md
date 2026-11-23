@@ -7,6 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- `fetch()` reads what each page states about itself first: its JSON-LD article data, its `<h1>`
+  and its meta tags. trafilatura still reads the article's body, and stands in for anything the
+  page doesn't state.
+  - **Headlines** are the page's own: the first `<h1>` that matches the JSON-LD headline,
+    `og:title` or trafilatura's title, else the JSON-LD headline. Where `og:title` is worded
+    differently from the headline, as on some Euronews Türkçe pages, the headline now wins.
+  - **Leads.** Most pages show their lead paragraph outside the article body, so 1.0 dropped it.
+    When the page's description matches a visible element, that text now opens `text`, unless
+    `text` already has it. A description that isn't shown on the page is never added.
+  - **Authors** come from JSON-LD, several joined by ", ". A name that only repeats the outlet or
+    publisher is left out, and so are email addresses. Desks and agencies stay.
+  - Because extraction changed, the articles `fetch()` kept from 1.0 are extracted again, once:
+    their pages are downloaded one more time on the next `fetch()`.
+
+### Fixed
+- `published` keeps the page's own UTC offset. 1.0 read every time as Türkiye's, so a page that said
+  23:30+01:00 came out as 23:30+03:00 instead of 01:30 the next day, and Euronews Türkçe got only
+  the day from its URLs. Now Euronews Türkçe gets the exact time, and a date in a URL is used only
+  when the page states none.
+
 ## [1.0.0] - 2026-11-08
 
 1.0 is a rewrite. It finds articles by keyword and date range in the archives of seven

@@ -225,10 +225,20 @@ def test_a_description_that_repeats_the_headline_isnt_a_lead() -> None:
         f"{LEAD}\nBirinci paragraf.",
         f"{LEAD} Birinci paragrafın devamı.\nİkinci paragraf.",
         f"{LEAD.replace('yeniden', 'yeni den')}\nBirinci paragraf.",
+        f"Okullarda eğitim başladı\n{LEAD}\nBirinci paragraf.",
+        f"Okullarda eğitim başladı\n{LEAD.replace('yeniden', 'yeni den')}\nBirinci paragraf.",
+        f"Birinci paragraf. {LEAD} Devamı.",
     ],
-    ids=["first-line", "start-of-first-line", "98-percent"],
+    ids=[
+        "first-line",
+        "start-of-first-line",
+        "98-percent",
+        "after-the-headline",
+        "98-percent-later",
+        "inside-a-paragraph",
+    ],
 )
-def test_a_lead_already_at_the_start_of_the_text_isnt_added_again(text: str) -> None:
+def test_a_lead_the_text_already_has_isnt_added_again(text: str) -> None:
     assert with_lead(text, LEAD) == text
 
 
@@ -255,6 +265,10 @@ def test_without_text_there_is_nothing_to_put_a_lead_in_front_of() -> None:
         ({"@type": "Organization", "name": "Haber Merkezi"}, ("Haber Merkezi",)),
         (["https://www.ornek.com.tr/yazar/ayse-demir", {"url": "https://x"}, 7], ()),
         (None, ()),
+        # Email addresses are left out of names, and so are names that are only an address.
+        ({"name": "AYŞE DEMİR / cumartesi@ornek.com.tr"}, ("AYŞE DEMİR",)),
+        ({"name": "Ayşe Demir (ayse.demir@ornek.com.tr)"}, ("Ayşe Demir",)),
+        (["haber@ornek.com.tr", {"name": "Deniz Yılmaz"}], ("Deniz Yılmaz",)),
     ],
 )
 def test_json_ld_names_every_author_once(author: object, expected: tuple[str, ...]) -> None:

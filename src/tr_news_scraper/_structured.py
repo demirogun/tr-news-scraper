@@ -45,6 +45,8 @@ _MAX_DEPTH = 4
 _SEPARATOR = re.compile(r"\s+[-|–—]\s+")
 _INVISIBLE = frozenset({"noscript", "template"})
 _NO_DISPLAY = re.compile(r"display\s*:\s*none", re.IGNORECASE)
+_EMAIL = re.compile(r"[^\s/,;|()<>]+@[^\s/,;|()<>]+")
+_NAME_EDGES = " /,;|-–—·()<>"
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,12 +134,13 @@ def choose_author(facts: PageFacts, fallback: str | None, outlet_name: str) -> s
 
 
 def with_lead(text: str | None, lead: str | None) -> str | None:
-    """``text`` with the visible lead as its first paragraph, unless it already begins with it
-    (F3d)."""
+    """``text`` with the visible lead as its first paragraph, unless the text already has it:
+    at its start, or as one of its paragraphs, word for word or 98% alike (F3d)."""
     if text is None or lead is None:
         return text
-    first_line = text.split("\n", 1)[0]
-    if text.startswith(lead) or _alike(lead, first_line) or _alike(lead, text[: len(lead)]):
+    if lead in text or _alike(lead, text[: len(lead)]):
+        return text
+    if any(_alike(lead, paragraph) for paragraph in text.split("\n")):
         return text
     return f"{lead}\n{text}"
 
@@ -263,10 +266,12 @@ def _name(value: object) -> str | None:
 
 
 def _names(value: object) -> tuple[str, ...]:
-    """Every author name once, in order; links and nameless entries are skipped."""
+    """Every author name once, in order, without email addresses; links and nameless entries
+    are skipped."""
     found: dict[str, str] = {}
     for item in value if isinstance(value, list) else [value]:
-        name = line(_name(item))
+        name = line(_EMAIL.sub(" ", _name(item) or ""))
+        name = line(name.strip(_NAME_EDGES)) if name else None
         if name and not name.lower().startswith(("http://", "https://", "www.")):
             found.setdefault(fold(name), name)
     return tuple(found.values())
