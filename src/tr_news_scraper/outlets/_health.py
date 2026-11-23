@@ -8,9 +8,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from itertools import pairwise
 
 from tr_news_scraper._http import Http
-from tr_news_scraper.outlets._model import Month, MonthlySitemap, Outlet, SiteSearch
+from tr_news_scraper.outlets._chunks import Chunk, listed_chunks, read_chunk
+from tr_news_scraper.outlets._dates import ISTANBUL
+from tr_news_scraper.outlets._model import (
+    ChunkedSitemap,
+    Month,
+    MonthlySitemap,
+    Outlet,
+    SiteSearch,
+)
 from tr_news_scraper.outlets._scan import HTML_ACCEPT, READ_ERRORS, XML_ACCEPT, describe
 from tr_news_scraper.outlets._search import Page, page_url, parse_page
 from tr_news_scraper.outlets._sitemaps import (
@@ -24,6 +33,9 @@ MAX_FILES = 3
 """Monthly sitemaps: the most of last month's files read, in index order, to find entries."""
 MIN_ID_PERCENT = 99
 """Monthly sitemaps with ``article_id``: the share of entries whose URL must give one."""
+MIN_IN_ORDER = 0.9
+"""Chunked sitemaps: the share of neighbouring dated entries that must follow
+``entry_order``."""
 MIN_SEARCH_RESULTS = 10
 MAX_SEARCH_AGE_DAYS = 14
 
@@ -36,12 +48,14 @@ class Health:
     problems: tuple[str, ...]
     """What's wrong, one sentence each; empty when the outlet is healthy."""
     oldest: Month | None = None
-    """Monthly sitemaps: the first month the index lists."""
+    """Monthly sitemaps: the first month the index lists. Chunked sitemaps: the month of the
+    oldest file's date."""
     newest: Month | None = None
-    """Monthly sitemaps: the last month the index lists."""
+    """Monthly sitemaps: the last month the index lists. Chunked sitemaps: the month of the
+    newest file's newest date."""
     sample: int = 0
-    """Candidates in the first of last month's files that has entries, or kept results on
-    page 1 of the search."""
+    """Candidates in the first of last month's files that has entries, in a chunked archive's
+    newest file, or kept results on page 1 of the search."""
 
     @property
     def ok(self) -> bool:
@@ -53,6 +67,8 @@ def check(outlet: Outlet, http: Http, *, today: date, query: str = "deprem") -> 
     ``query`` is what a site-search outlet is searched for."""
     if isinstance(outlet, MonthlySitemap):
         return _check_sitemaps(outlet, http, today)
+    if isinstance(outlet, ChunkedSitemap):
+        return _check_chunks(outlet, http, today)
     return _check_search(outlet, http, today, query)
 
 
@@ -114,6 +130,77 @@ def _check_sitemaps(outlet: MonthlySitemap, http: Http, today: date) -> Health:
 def _read_file(outlet: MonthlySitemap, http: Http, month: Month, url: str) -> MonthFile:
     response = http.get(url, allowed_hosts=outlet.hosts, accept=XML_ACCEPT)
     return read_month_file(response.xml(), outlet, month, url)
+
+
+def _check_chunks(outlet: ChunkedSitemap, http: Http, today: date) -> Health:
+    """Three requests: the index, the newest file and the oldest file (K7)."""
+    try:
+        index = http.get(outlet.index, allowed_hosts=outlet.hosts, accept=XML_ACCEPT).xml()
+        urls = listed_chunks(index, outlet)
+    except READ_ERRORS as error:
+        return Health(outlet.id, (f"its sitemap index couldn't be read: {describe(error)}",))
+    if not urls:
+        return Health(outlet.id, ("no entry in its sitemap index matches chunk_file",))
+    try:
+        newest = _chunk(outlet, http, urls[-1], today)
+    except READ_ERRORS as error:
+        return Health(outlet.id, (f"its newest file couldn't be read: {describe(error)}",))
+    problems = [*_chunk_problems(outlet, newest, today)]
+    oldest_month = None
+    try:
+        oldest = newest if len(urls) == 1 else _chunk(outlet, http, urls[0], today)
+    except READ_ERRORS as error:
+        problems.append(f"its oldest file couldn't be read: {describe(error)}")
+    else:
+        if oldest.date is not None:
+            oldest_month = Month.of(oldest.date.astimezone(ISTANBUL).date())
+            if outlet.earliest is not None and oldest_month > outlet.earliest.next():
+                problems.append(
+                    f"its oldest file is dated {oldest_month}, more than a month after the "
+                    f"declared {outlet.earliest}"
+                )
+    newest_month = (
+        None if newest.newest is None else Month.of(newest.newest.astimezone(ISTANBUL).date())
+    )
+    return Health(outlet.id, tuple(problems), oldest_month, newest_month, len(newest.entries))
+
+
+def _chunk(outlet: ChunkedSitemap, http: Http, url: str, today: date) -> Chunk:
+    response = http.get(url, allowed_hosts=outlet.hosts, accept=XML_ACCEPT)
+    return read_chunk(response.xml(), outlet, url, today=today)
+
+
+def _chunk_problems(outlet: ChunkedSitemap, newest: Chunk, today: date) -> list[str]:
+    """What's wrong with the newest file of a chunked archive (K7)."""
+    if newest.total == 0:
+        return ["its newest file is empty"]
+    problems = []
+    if newest.dropped * 100 > newest.total:
+        problems.append(
+            f"{newest.dropped} of {newest.total} entries in its newest file "
+            "aren't HTTPS URLs on its hosts"
+        )
+    if newest.newest is None:
+        problems.append("its newest file has no dates")
+    elif (today - newest.newest.astimezone(ISTANBUL).date()).days > MAX_SEARCH_AGE_DAYS:
+        problems.append(
+            f"its newest file's newest date is {newest.newest.astimezone(ISTANBUL).date()}, "
+            f"more than {MAX_SEARCH_AGE_DAYS} days ago"
+        )
+    dated = [found for found in newest.dates if found is not None]
+    pairs = list(pairwise(dated))
+    in_order = sum(1 for earlier, later in pairs if earlier <= later)
+    if pairs and in_order < MIN_IN_ORDER * len(pairs):
+        problems.append(
+            f"only {in_order} of {len(pairs)} neighbouring entries in its newest file follow "
+            f"entry_order ({outlet.entry_order})"
+        )
+    titled = sum(1 for entry in newest.entries if entry.title)
+    if outlet.titles is not None and titled * 2 < len(newest.entries):
+        problems.append(
+            f"only {titled} of {len(newest.entries)} entries in its newest file have a headline"
+        )
+    return problems
 
 
 def _check_search(outlet: SiteSearch, http: Http, today: date, query: str) -> Health:

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from tr_news_scraper._http import Http, HttpConfig
 from tr_news_scraper._search import in_threads, resolve_outlets
 from tr_news_scraper._table import string_series, time_series
-from tr_news_scraper.outlets import Month, MonthlySitemap, Outlet
+from tr_news_scraper.outlets import ChunkedSitemap, Month, MonthlySitemap, Outlet, SiteSearch
 from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._health import check as health_check
 
@@ -35,7 +35,7 @@ def coverage(
     >>> coverage(check=True)    # also checks every archive now: 2 requests per outlet
 
     The columns are ``outlet``, ``name``, ``method``, ``earliest`` (the first month of a
-    monthly sitemap), ``headlines`` (``no``, ``image titles``, ``news titles`` or
+    sitemap archive), ``headlines`` (``no``, ``image titles``, ``news titles`` or
     ``search results``), ``hosts``
     and ``notes``. With ``check=True`` it reads each archive's index and last month, or the
     first two search pages, and adds ``ok``, ``problems``, ``oldest`` and ``newest`` (the
@@ -84,11 +84,11 @@ def _coverage(outlets: Sequence[Outlet], http: Http | None, *, now: datetime) ->
 
 
 def _earliest(outlet: Outlet) -> str | None:
-    return _month(outlet.earliest) if isinstance(outlet, MonthlySitemap) else None
+    return None if isinstance(outlet, SiteSearch) else _month(outlet.earliest)
 
 
 def _headlines(outlet: Outlet) -> str:
-    if isinstance(outlet, MonthlySitemap):
+    if isinstance(outlet, (MonthlySitemap, ChunkedSitemap)):
         return {"image": "image titles", "news": "news titles"}.get(outlet.titles or "", "no")
     return "search results" if outlet.title is not None else "no"
 

@@ -25,6 +25,7 @@ from tr_news_scraper.errors import OutletFailed, SearchFailed
 from tr_news_scraper.matching import KeywordQuery, tr_lower
 from tr_news_scraper.outlets import (
     Candidate,
+    ChunkedSitemap,
     MonthlySitemap,
     Outlet,
     SiteSearch,
@@ -37,7 +38,7 @@ from tr_news_scraper.outlets._scan import scan
 logger = logging.getLogger("tr_news_scraper.search")
 
 _DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
-_OUTLET_KINDS = (MonthlySitemap, SiteSearch)
+_OUTLET_KINDS = (MonthlySitemap, SiteSearch, ChunkedSitemap)
 _WAIT_STEP = 0.1
 """Seconds the main thread waits on the workers at a time: on Windows, Ctrl+C reaches a waiting
 thread only when its wait returns."""

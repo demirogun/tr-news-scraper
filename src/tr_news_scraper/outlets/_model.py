@@ -299,7 +299,7 @@ class SiteSearch:
         return _accepts(url, self.hosts)
 
 
-Outlet = MonthlySitemap | SiteSearch
+Outlet = MonthlySitemap | SiteSearch | ChunkedSitemap
 """Any outlet definition."""
 
 GapReason = Literal[

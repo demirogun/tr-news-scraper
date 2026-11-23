@@ -7,7 +7,7 @@ the network.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from statistics import median_low
@@ -141,3 +141,54 @@ def _date(entry: Entry, low: datetime | None, high: datetime) -> datetime | None
     if found is None or found >= high or (low is not None and found < low):
         return None
     return found
+
+
+def first_dated_on_or_after(
+    count: int,
+    date_at: Callable[[int], datetime | None],
+    target: datetime,
+    *,
+    oldest_guess: datetime | None,
+    newest_guess: datetime,
+) -> int:
+    """The position, in age order, of the first of ``count`` chunks dated on or after
+    ``target``; ``count`` when none is (K3).
+
+    Interpolation search: the first guess places ``oldest_guess`` (the outlet's earliest month)
+    before the first chunk and ``newest_guess`` (today) at the end; later guesses use the dates
+    read. A step that doesn't halve the interval switches to bisection, so at most
+    ⌈log₂ count⌉ + 3 chunks are read. ``date_at`` reads one chunk's date; an undated chunk
+    counts as on or after ``target``, which can only widen what's read.
+    """
+    low, high = 0, count
+    low_date, high_date = oldest_guess, newest_guess
+    bisect = oldest_guess is None
+    while low < high:
+        size = high - low
+        probe = (low + high) // 2
+        if not bisect and low_date is not None and low_date < target < high_date:
+            fraction = (target - low_date) / (high_date - low_date)
+            estimate = (low - 1) + fraction * (high - low + 1)
+            probe = min(max(round(estimate), low), high - 1)
+        found = date_at(probe)
+        if found is None or found >= target:
+            high = probe
+            high_date = high_date if found is None else found
+        else:
+            low, low_date = probe + 1, found
+        if high - low > size // 2:
+            bisect = True
+    return low
+
+
+def chunk_ttl(outlet: ChunkedSitemap, position: int, count: int) -> timedelta:
+    """How long a chunk, at ``position`` in age order, may be served from the cache (K6).
+
+    A chunk numbered from the newest changes with every new article. Numbered from the oldest,
+    only the newest chunk still grows, and the one before it may get late edits.
+    """
+    if outlet.chunk_order == "newest-first" or position >= count - 1:
+        return timedelta(hours=1)
+    if position == count - 2:
+        return timedelta(days=1)
+    return timedelta(days=30)

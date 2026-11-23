@@ -11,7 +11,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from lxml import etree
 
@@ -26,9 +26,20 @@ from tr_news_scraper.errors import (
     ResponseTooLarge,
     RobotsDisallowed,
 )
+from tr_news_scraper.outlets._chunks import (
+    Chunk,
+    chunk_ttl,
+    first_dated_on_or_after,
+    kept,
+    listed_chunks,
+    months_for,
+    read_chunk,
+)
+from tr_news_scraper.outlets._dates import ISTANBUL
 from tr_news_scraper.outlets._model import (
     BOUNDARY_REASONS,
     Candidate,
+    ChunkedSitemap,
     Gap,
     GapReason,
     Month,
@@ -120,7 +131,7 @@ class Scan:
         self.gaps: list[Gap] = []
         """What wasn't read, and why."""
         self.months: list[Month] = []
-        """The archive months whose files were all read (monthly sitemaps)."""
+        """The archive months whose files were all read (sitemap archives)."""
         self.dropped = 0
         """Entries skipped for not being HTTPS URLs on the outlet's hosts."""
         self._http = http
@@ -145,6 +156,8 @@ class Scan:
         try:
             if isinstance(self.outlet, MonthlySitemap):
                 yield from self._monthly(self.outlet)
+            elif isinstance(self.outlet, ChunkedSitemap):
+                yield from self._chunked(self.outlet)
             else:
                 yield from self._site_search(self.outlet)
             if self._attempts and not self._successes:
@@ -275,6 +288,90 @@ class Scan:
         self._files[url] = found
         return found
 
+    def _chunked(self, outlet: ChunkedSitemap) -> Iterator[Candidate]:
+        """Numbered files (K3–K5): find the first file dated on or after the start, read from
+        the one before it through the first dated on or after the end, and keep the entries
+        between them by position."""
+        try:
+            index = self._get(outlet.index, INDEX_TTL, XML_ACCEPT).xml()
+            urls = listed_chunks(index, outlet)
+        except READ_ERRORS as error:
+            raise OutletFailed(
+                outlet.id, f"its sitemap index couldn't be read: {describe(error)}"
+            ) from error
+        if not urls:
+            raise OutletFailed(outlet.id, "its sitemap index lists no numbered files")
+        archive = _Archive(self, outlet, urls)
+        start, end = _midnight(self._start), _midnight(self._end)
+        oldest_guess = None if outlet.earliest is None else _midnight(outlet.earliest.start)
+        try:
+            first = first_dated_on_or_after(
+                len(urls),
+                archive.date_at,
+                start,
+                oldest_guess=oldest_guess,
+                newest_guess=_midnight(self._today),
+            )
+        except _Unreadable as failed:
+            for month in Month.span(self._start, self._end):
+                self._fail(
+                    failed.error,
+                    f"{archive.name(failed.position)}, needed to find the range,",
+                    month=month,
+                    url=urls[failed.position],
+                )
+            return
+        window: list[Chunk] = []
+        for position in range(max(first - 1, 0), len(urls)):
+            chunk = archive.chunk(position)
+            if chunk is None:
+                continue
+            window.append(chunk)
+            if position >= first and chunk.date is not None and chunk.date >= end:
+                break
+        complete = not archive.failed
+        self._chunk_gaps(archive, start, end, complete=complete)
+        entries = [(entry, chunk.url) for chunk in window for entry in chunk.entries]
+        dates = [found for chunk in window for found in chunk.dates]
+        positions = kept(dates, start, end)
+        seen: set[str] = set()
+        for position, month in zip(
+            positions, months_for(dates, positions, self._start, self._end), strict=True
+        ):
+            entry, source = entries[position]
+            if entry.url in seen:
+                continue
+            seen.add(entry.url)
+            yield Candidate(
+                outlet=outlet.id,
+                url=entry.url,
+                month=month,
+                title=entry.title,
+                day=entry.day,
+                lastmod=entry.lastmod,
+                source=source,
+            )
+
+    def _chunk_gaps(
+        self, archive: _Archive, start: datetime, end: datetime, *, complete: bool
+    ) -> None:
+        """The range's months outside the archive, as far as the files read show (K5), and the
+        months read in full."""
+        oldest, newest = archive.oldest(), archive.newest()
+        for month in Month.span(self._start, self._end):
+            begins = max(_midnight(month.start), start)
+            ends = min(_midnight(month.next().start), end)
+            if oldest is not None and ends <= oldest:
+                first = Month.of(oldest.astimezone(ISTANBUL).date())
+                self.gaps.append(
+                    Gap("before-archive", f"the archive starts in {first}", month=month)
+                )
+            elif newest is not None and begins > newest:
+                last = Month.of(newest.astimezone(ISTANBUL).date())
+                self.gaps.append(Gap("after-archive", f"the archive ends in {last}", month=month))
+            elif complete:
+                self.months.append(month)
+
     def _site_search(self, outlet: SiteSearch) -> Iterator[Candidate]:
         queries: dict[str, str] = {}
         for keyword in self._keywords:
@@ -385,6 +482,86 @@ class Scan:
                 self.outlet.name,
                 self.dropped,
             )
+
+
+class _Unreadable(Exception):
+    """A chunk the search for the range needed couldn't be read."""
+
+    def __init__(self, position: int, error: Exception) -> None:
+        super().__init__(position)
+        self.position = position
+        self.error = error
+
+
+class _Archive:
+    """A chunked archive's files for one scan: each read once, with its cache time (K6)."""
+
+    def __init__(self, scan: Scan, outlet: ChunkedSitemap, urls: Sequence[str]) -> None:
+        self._scan = scan
+        self._outlet = outlet
+        self._urls = urls
+        self._read: dict[int, Chunk | Exception] = {}
+        self.failed = False
+        """Whether a file inside the range couldn't be read."""
+
+    def name(self, position: int) -> str:
+        return f"archive file {position + 1} of {len(self._urls)}"
+
+    def date_at(self, position: int) -> datetime | None:
+        found = self._load(position)
+        if isinstance(found, Exception):
+            raise _Unreadable(position, found)
+        return found.date
+
+    def chunk(self, position: int) -> Chunk | None:
+        """The file at ``position``, or ``None`` after recording why it couldn't be read."""
+        found = self._load(position)
+        if isinstance(found, Exception):
+            self.failed = True
+            self._scan._fail(found, self.name(position), url=self._urls[position])
+            return None
+        return found
+
+    def oldest(self) -> datetime | None:
+        """The oldest date in the archive's first file, if it was read."""
+        found = self._read.get(0)
+        return found.oldest if isinstance(found, Chunk) else None
+
+    def newest(self) -> datetime | None:
+        """The newest date in the archive's last file, if it was read."""
+        found = self._read.get(len(self._urls) - 1)
+        return found.newest if isinstance(found, Chunk) else None
+
+    def _load(self, position: int) -> Chunk | Exception:
+        if position in self._read:
+            return self._read[position]
+        scan, url = self._scan, self._urls[position]
+        ttl = chunk_ttl(self._outlet, position, len(self._urls))
+        scan._attempts += 1
+        found: Chunk | Exception
+        try:
+            response = scan._get(url, ttl, XML_ACCEPT)
+            found = read_chunk(response.xml(), self._outlet, url, today=scan._today)
+        except READ_ERRORS as error:
+            found = error
+        else:
+            scan._successes += 1
+            scan.dropped += found.dropped
+            logger.debug(
+                "%s: %s has %d entries, kept %d, dropped %d",
+                self._outlet.name,
+                url,
+                found.total,
+                len(found.entries),
+                found.dropped,
+            )
+        self._read[position] = found
+        return found
+
+
+def _midnight(day: date) -> datetime:
+    """The start of ``day`` in Türkiye."""
+    return datetime.combine(day, time(), ISTANBUL)
 
 
 def _first_file(listed: Mapping[Month, Sequence[str]], month: Month) -> str | None:
