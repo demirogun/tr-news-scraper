@@ -114,3 +114,10 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `sputnik-tr/2023-02.xml` | https://anlatilaninotesi.com.tr/sitemap_article.xml?date_start=20230201&date_end=20230228 |
 | `takvim/index.xml` | https://www.takvim.com.tr/sitemap/post.xml |
 | `takvim/2023-02.xml` | https://www.takvim.com.tr/sitemaparchives/post/2023-2.xml |
+| `timeturk/index.xml` | https://www.timeturk.com/sitemap.xml |
+| `timeturk/chunk-0001.xml` | https://www.timeturk.com/sitemap-posts-373.xml |
+| `timeturk/chunk-0292.xml` | https://www.timeturk.com/sitemap-posts-82.xml |
+| `timeturk/chunk-0293.xml` | https://www.timeturk.com/sitemap-posts-81.xml |
+| `timeturk/chunk-0294.xml` | https://www.timeturk.com/sitemap-posts-80.xml |
+| `timeturk/chunk-0295.xml` | https://www.timeturk.com/sitemap-posts-79.xml |
+| `timeturk/chunk-0373.xml` | https://www.timeturk.com/sitemap-posts-1.xml |

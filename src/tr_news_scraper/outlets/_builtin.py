@@ -277,6 +277,21 @@ TAKVIM = MonthlySitemap(
 )
 
 
+TIMETURK = ChunkedSitemap(
+    id="timeturk",
+    name="Timeturk",
+    index="https://www.timeturk.com/sitemap.xml",
+    chunk_file=r"/sitemap-posts-(?P<n>\d+)\.xml$",
+    chunk_order="newest-first",
+    entry_order="newest-first",
+    earliest=Month(2014, 1),
+    notes=(
+        "Numbered files of 1,000 articles each, the newest first; its oldest articles are dated "
+        "January 2014. No headlines."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -323,6 +338,7 @@ BUILTIN: tuple[Outlet, ...] = (
     OZGUR_KOCAELI,
     SABAH,
     TAKVIM,
+    TIMETURK,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = (SPUTNIK_TR,)

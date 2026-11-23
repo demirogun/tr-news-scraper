@@ -139,6 +139,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 | Özgür Kocaeli | `ozgur-kocaeli` | monthly sitemap | 2006-01 | no | yes |
 | Sabah | `sabah` | monthly sitemap | 2003-11 | no | yes |
 | Takvim | `takvim` | monthly sitemap | 2009-02 | no | yes |
+| Timeturk | `timeturk` | chunked sitemap | 2014-01 | no | yes |
 | Sputnik Türkiye | `sputnik-tr` | monthly sitemap | 2014-11 | no | no |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
@@ -163,6 +164,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Özgür Kocaeli:** A regional paper of Kocaeli, the 1999 earthquake's area. Every month since September 2010; only scattered months before. No headlines.
 - **Sabah:** Every month since November 2003, the busiest in parts; about 3% of its articles are on finans.sabah.com.tr. No headlines.
 - **Takvim:** Every month since February 2009. No headlines.
+- **Timeturk:** Numbered files of 1,000 articles each, the newest first; its oldest articles are dated January 2014. No headlines.
 - **Sputnik Türkiye:** Opt-in: funded by the Russian state, so it's read only when you name it. Every month since November 2014. No headlines.
 
 Every outlet's archive is allowed by its robots.txt. Where an archive has no headlines, articles

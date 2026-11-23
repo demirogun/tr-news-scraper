@@ -39,6 +39,7 @@ OUTLETS = (
     "sputnik-tr",
     "star",
     "takvim",
+    "timeturk",
     "trt-haber",
 )
 LETTERS = re.compile(r"[^\W\d_]+")

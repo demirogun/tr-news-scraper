@@ -130,6 +130,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.takvim.com.tr/galeri/yasam/deprem-duasi-turkce-arapca-okunusu-ve-anlami-deprem-aninda-okunacak-dua-zilzal-zelzele-suresi-meali-dogal-afetlerden-korunma-duasi",
         "https://www.takvim.com.tr/guncel/2023/01/31/turkiye-ve-islam-karsiti-provokasyonlarin-merkezi-haline-gelen-isvecte-nato-panigi-buyuk-riskler",
     ),
+    (
+        "timeturk",
+        Month(2023, 2),
+        57,
+        "https://www.timeturk.com/spor/alpaslan-ozturk-eyupspor-da-kadro-disi-mi-kaldi/haber-1759979",
+        "https://www.timeturk.com/ekonomi/taksitle-telefon-alma-firsati/haber-1762363",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 
