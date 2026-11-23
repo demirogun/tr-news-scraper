@@ -42,7 +42,7 @@ def test_builtin_gives_the_defaults_and_on_request_the_opt_in_outlets_last() -> 
 @pytest.mark.usefixtures("opt_in")
 def test_get_finds_an_opt_in_outlet_and_names_every_id() -> None:
     assert get("ornek-ajans") is EXTRA
-    with pytest.raises(ValueError, match=r"choose from cumhuriyet, .*, milliyet, ornek-ajans$"):
+    with pytest.raises(ValueError, match=r"choose from cumhuriyet, .*, ornek-ajans$"):
         get("yok")
 
 

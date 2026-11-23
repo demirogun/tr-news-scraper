@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from requests_mock import Mocker
 
+import tr_news_scraper.outlets._builtin as builtin_module
 from tests.http.conftest import FakeClock
 from tr_news_scraper._http import Http, HttpConfig
 from tr_news_scraper.outlets import MonthlySitemap, builtin, get
@@ -28,6 +29,18 @@ MONTH_FILES = {
     "sozcu": ("2024-06.xml", "https://www.sozcu.com.tr/feeds/sitemapposts?year=2024&month=6"),
 }
 MILLIYET_SEARCH = re.compile(r"https://www\.milliyet\.com\.tr/api/search/")
+
+
+SEVEN = ("cumhuriyet", "euronews-tr", "trt-haber", "star", "aksam", "sozcu", "milliyet")
+
+
+@pytest.fixture(autouse=True)
+def _the_seven_outlets_of_1_0(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests run search over 1.0's seven outlets and their recorded archives, so they
+    don't change as outlets are added; tests/outlets/test_new_outlets.py reads the others."""
+    seven = tuple(outlet for outlet in builtin_module.BUILTIN if outlet.id in SEVEN)
+    monkeypatch.setattr(builtin_module, "BUILTIN", seven)
+    monkeypatch.setattr(builtin_module, "OPT_IN", ())
 
 
 @pytest.fixture(autouse=True)

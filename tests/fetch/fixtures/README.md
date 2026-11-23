@@ -34,6 +34,7 @@ its sidebar; it was rebuilt on 2026-11-23.)
 
 | File | Source | Byline |
 |---|---|---|
+| `a-haber/page.html` | https://www.ahaber.com.tr/yasam/2025/10/02/dogal-afetlerden-koruyan-dua-zilzal-suresinin-turkce-arapca-okunusu-deprem-aninda-okunur-mu | desk |
 | `aksam/page.html` | https://www.aksam.com.tr/cumartesi/cocuklara-deprem-nasil-anlatilir/haber-1345913 | fictional |
 | `cumhuriyet/page.html` | https://www.cumhuriyet.com.tr/bilim-teknoloji/abdli-uzay-sirketi-depremin-uydu-goruntulerini-yayinladi-2049504 | desk |
 | `euronews-tr/page.html` | https://tr.euronews.com/2023/02/28/kahramanmaras-depremleri-sonrasi-suriyede-22-kisi-kolera-nedeniyle-hayatini-kaybetti | none |

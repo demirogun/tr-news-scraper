@@ -17,7 +17,15 @@ FIXTURES = Path(__file__).parent / "fixtures"
 TODAY = date(2026, 11, 23)
 # outlet id, the month scanned, then what its recorded files give: how many URLs, the first and
 # the last (see each outlet's sources.json and fixtures/README.md).
-RECORDED: list[tuple[str, Month, int, str, str]] = []
+RECORDED: list[tuple[str, Month, int, str, str]] = [
+    (
+        "a-haber",
+        Month(2023, 2),
+        20,
+        "https://www.ahaber.com.tr/yasam/2025/10/02/dogal-afetlerden-koruyan-dua-zilzal-suresinin-turkce-arapca-okunusu-deprem-aninda-okunur-mu",
+        "https://www.ahaber.com.tr/gundem/2023/01/31/altili-masada-yeni-kaos-ahmet-davutoglundan-ortaklarina-yaylim-atesi-icazet-almadan-konusanlar-lutfen-susun",
+    ),
+]
 IDS = [case[0] for case in RECORDED]
 
 

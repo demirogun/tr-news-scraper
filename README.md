@@ -124,6 +124,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 | Akşam | `aksam` | monthly sitemap | 2010-12 | no | yes |
 | Sözcü | `sozcu` | monthly sitemap | 2023-12 | no | yes |
 | Milliyet | `milliyet` | site search | — | search results | yes |
+| A Haber | `a-haber` | monthly sitemap | 2011-03 | no | yes |
 
 - **Cumhuriyet:** Every month since July 2008; only scattered months before. No headlines.
 - **Euronews Türkçe:** Matched on URLs only: the titles in its sitemaps describe photos, not articles.
@@ -132,6 +133,7 @@ outlet's reason, and `fetch()` raises `FetchFailed` when no article could be rea
 - **Akşam:** Lists article URLs without headlines.
 - **Sözcü:** Sözcü's new website, from December 2023; older articles aren't in its archive.
 - **Milliyet:** Milliyet's search returns only its newest 10,000 results for each keyword; for a frequent word like 'deprem' that reaches back about two and a half years.
+- **A Haber:** Every month since March 2011. No headlines.
 
 Every outlet's archive is allowed by its robots.txt. Where an archive has no headlines, articles
 are matched on their URLs; after `fetch()`, `text_matched` shows which keywords each text names.

@@ -16,7 +16,16 @@ import pytest
 from tr_news_scraper.matching import fold, tr_lower
 
 FIXTURES = Path(__file__).parent / "fixtures"
-OUTLETS = ("aksam", "cumhuriyet", "euronews-tr", "milliyet", "sozcu", "star", "trt-haber")
+OUTLETS = (
+    "a-haber",
+    "aksam",
+    "cumhuriyet",
+    "euronews-tr",
+    "milliyet",
+    "sozcu",
+    "star",
+    "trt-haber",
+)
 LETTERS = re.compile(r"[^\W\d_]+")
 
 

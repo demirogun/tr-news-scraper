@@ -29,3 +29,23 @@ robots.txt obeyed, honest User-Agent, one request per second per site.
 | `milliyet/deprem-page-1.html` | https://www.milliyet.com.tr/api/search/searchcontentloadmore?query=deprem&page=1 |
 | `milliyet/deprem-page-400.html` | the same search, `page=400` |
 | `milliyet/deprem-page-401.html` | the same search, `page=401` |
+
+## Recorded on 2026-11-23, for the outlets 1.1 adds
+
+Fetched the same way, through tr-news-scraper's own client. Each outlet's `sources.json`
+maps its files to the URLs they came from, and the tests serve them there.
+
+- An index keeps its two oldest and two newest months (their first file) and the files the
+  tests read; a chunked archive's index keeps its oldest and newest files and the files
+  around February 2023. Entries that aren't month or numbered files stay.
+- A month file keeps 20 entries, as above; a month with several files keeps its first three,
+  in index order. Habertürk's January, February and March keep the entries that exercise
+  its article-number span.
+- A numbered file keeps its first and last 5 entries and up to 30 entries dated within three
+  days of February 2023, spread evenly.
+- No entry whose URL names an author (`/yazar/`, `/yazarlar/`, `/author/` ...) is kept.
+
+| File | Source |
+|---|---|
+| `a-haber/index.xml` | https://www.ahaber.com.tr/sitemap/post.xml |
+| `a-haber/2023-02.xml` | https://www.ahaber.com.tr/sitemaparchives/post/2023-2.xml |

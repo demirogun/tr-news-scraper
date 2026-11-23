@@ -64,6 +64,21 @@ SOZCU = MonthlySitemap(
 )
 
 
+# Sabah, A Haber, Takvim and Yeni Asır share Turkuvaz Medya's layout: one file a month, or
+# several parts for a busy month (2023-2.xml, 2023-2-1.xml, ...).
+_TURKUVAZ_MONTHS = r"/sitemaparchives/post/(?P<year>\d{4})-(?P<month>\d{1,2})(?:-\d+)?\.xml$"
+
+
+A_HABER = MonthlySitemap(
+    id="a-haber",
+    name="A Haber",
+    index="https://www.ahaber.com.tr/sitemap/post.xml",
+    month_file=_TURKUVAZ_MONTHS,
+    earliest=Month(2011, 3),
+    notes="Every month since March 2011. No headlines.",
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -87,7 +102,16 @@ MILLIYET = SiteSearch(
     ),
 )
 
-BUILTIN: tuple[Outlet, ...] = (CUMHURIYET, EURONEWS_TR, TRT_HABER, STAR, AKSAM, SOZCU, MILLIYET)
+BUILTIN: tuple[Outlet, ...] = (
+    CUMHURIYET,
+    EURONEWS_TR,
+    TRT_HABER,
+    STAR,
+    AKSAM,
+    SOZCU,
+    MILLIYET,
+    A_HABER,
+)
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()
 """Built-in outlets read only when named, so nobody gets them by surprise."""
