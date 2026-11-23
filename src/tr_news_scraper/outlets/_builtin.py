@@ -212,6 +212,21 @@ ODATV = MonthlySitemap(
 )
 
 
+OLAY = ChunkedSitemap(
+    id="olay",
+    name="Olay",
+    index="https://www.olay.com.tr/sitemap_index.xml",
+    chunk_file=r"/post-sitemap(?P<n>\d*)\.xml$",
+    chunk_order="newest-first",
+    entry_order="newest-first",
+    earliest=Month(2014, 9),
+    notes=(
+        "A regional paper of Bursa. Numbered files of about 1,000 articles each, the newest "
+        "first, back to September 2014. No headlines."
+    ),
+)
+
+
 def _has_class(name: str) -> str:
     """An XPath test for an element whose class list includes ``name``."""
     return f"contains(concat(' ', normalize-space(@class), ' '), ' {name} ')"
@@ -254,6 +269,7 @@ BUILTIN: tuple[Outlet, ...] = (
     MYNET,
     NTV,
     ODATV,
+    OLAY,
 )
 """The default outlets: search reads them unless told otherwise."""
 OPT_IN: tuple[Outlet, ...] = ()

@@ -95,6 +95,13 @@ RECORDED: list[tuple[str, Month, int, str, str]] = [
         "https://www.odatv.com/guncel/yalanlari-ve-gercekleriyle-28-subat-272623",
         "https://www.odatv.com/dunya/fransada-isyan-yayiliyor-269118",
     ),
+    (
+        "olay",
+        Month(2023, 2),
+        101,
+        "https://www.olay.com.tr/bursada-2-katli-ev-alev-alev-yandi-1094653",
+        "https://www.olay.com.tr/bursadaki-trafik-kazasinda-2-kisi-yaralandi-2-1108070",
+    ),
 ]
 IDS = [case[0] for case in RECORDED]
 

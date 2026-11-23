@@ -97,3 +97,11 @@ maps its files to the URLs they came from, and the tests serve them there.
 | `odatv/2023-02-1.xml` | https://www.odatv.com/guncel/2023-02.xml |
 | `odatv/2023-02-2.xml` | https://www.odatv.com/ekonomi/2023-02.xml |
 | `odatv/2023-02-3.xml` | https://www.odatv.com/dunya/2023-02.xml |
+| `olay/index.xml` | https://www.olay.com.tr/sitemap_index.xml |
+| `olay/chunk-0001.xml` | https://www.olay.com.tr/post-sitemap433.xml |
+| `olay/chunk-0323.xml` | https://www.olay.com.tr/post-sitemap111.xml |
+| `olay/chunk-0324.xml` | https://www.olay.com.tr/post-sitemap110.xml |
+| `olay/chunk-0325.xml` | https://www.olay.com.tr/post-sitemap109.xml |
+| `olay/chunk-0326.xml` | https://www.olay.com.tr/post-sitemap108.xml |
+| `olay/chunk-0327.xml` | https://www.olay.com.tr/post-sitemap107.xml |
+| `olay/chunk-0433.xml` | https://www.olay.com.tr/post-sitemap1.xml |
