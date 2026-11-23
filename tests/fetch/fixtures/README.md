@@ -19,14 +19,18 @@ outlet's real markup. It doesn't keep the article:
   sources stay.
 - **Fictional names:** every journalist named as an author, in JSON-LD, a meta tag or the page's
   byline, became a fictional name in every spelling: as written, in capitals, title case and
-  lowercase, folded, as a URL slug, and as the usernames sites make of it. Desk and agency names
-  ("Haber Merkezi", "IHA") stay.
+  lowercase, folded, as a URL slug, and as the usernames sites make of it. So did every other
+  name in an element named for an author, or in a link to an author's page (such as the
+  columnists a sidebar lists), and every author profile URL points at the fictional slug. Desk
+  and agency names ("Haber Merkezi", "IHA") stay.
 - **Removed:** scripts other than JSON-LD, styles, iframes, SVG, comments and noscript blocks.
   Only the canonical link stays, and every page declares UTF-8.
 
 No file here contains article text or a real journalist's name. After the rebuild, every word of
 each real byline (folded, longer than two letters) was searched for in its skeleton, and none was
-found.
+found; nor was any name-like text in an author element or an author link that isn't fictional, a
+desk or an agency. (Milliyet's skeleton, as first published in 1.0, still had the columnists of
+its sidebar; it was rebuilt on 2026-11-23.)
 
 | File | Source | Byline |
 |---|---|---|

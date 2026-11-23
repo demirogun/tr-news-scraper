@@ -14,7 +14,11 @@ headline and the dates. It replaces:
   metadata, not article text;
 - every person named as an author in JSON-LD or a ``meta[name=author]`` tag, and each name given
   with ``--author``, with a fictional name, wherever and however it's spelled: as written, in
-  capitals, in title case and as a URL slug. Organizations, desks and agencies keep their names.
+  capitals, in title case and as a URL slug. Every author profile URL (``/author/…``,
+  ``/yazar/…``) points at the fictional name's slug, whatever username it had. Every other name
+  (two to four capitalized words) inside an element named for an author, a byline, a writer or
+  an editor, or in a link to an author's page, becomes fictional too, such as the columnists a
+  sidebar lists. Organizations, desks and agencies keep their names.
 
 It removes scripts other than JSON-LD, styles, iframes, SVG, comments and noscript blocks, keeps
 only the canonical link, and declares UTF-8. The input is a page saved as UTF-8 text. Usage::
@@ -65,8 +69,17 @@ FICTIONAL_NAMES = (
     "Mert Çelik",
     "Selin Aydın",
     "Burak Şahin",
+    "Ece Yıldız",
+    "Kaan Doğan",
+    "Defne Koç",
+    "Emre Kurt",
+    "Nil Özdemir",
+    "Ozan Aksoy",
+    "Derya Polat",
+    "Umut Erdem",
 )
-"""Fictional names for bylines that ``--author`` doesn't cover, used in this order."""
+"""Fictional names for bylines that ``--author`` doesn't cover, used in this order, and again
+from the start on a page that names more people."""
 # Words (folded) that mark a byline as a desk, an agency or an outlet rather than a person.
 DESK_WORDS = frozenset(
     {
@@ -90,6 +103,7 @@ TEXT_ATTRIBUTES = ("alt", "title", "aria-label")
 _TURKISH_UPPER = {"i": "İ", "ı": "I"}
 _WORDS = re.compile(r"[^\W\d_]+")
 _METADATA = re.compile(r"time|date|author|byline|writer|source|editor", re.IGNORECASE)
+_AUTHOR_NAMED = re.compile(r"author|byline|writer|editor|yazar|muhabir", re.IGNORECASE)
 _JSON_TEXT = re.compile(
     r'("(?:articleBody|description|text|abstract|caption)"\s*:\s*")((?:[^"\\]|\\.)*)(")'
 )
@@ -97,6 +111,11 @@ _JSON_AUTHOR = re.compile(r'"author"\s*:\s*(\{[^{}]*\}|\[[^\[\]]*\]|"(?:[^"\\]|\
 _JSON_NAME = re.compile(r'"name"\s*:\s*"((?:[^"\\]|\\.)*)"')
 _EMAIL = re.compile(r"[^\s/,;|()<>]+@[^\s/,;|()<>]+")
 _NAME_EDGES = " /,;|-–—·()<>"
+# An author's profile URL, whose last part is often a username no spelling of the name gives.
+_AUTHOR_PAGE = re.compile(
+    r"(/(?:author|authors|yazar|yazarlar|muhabir|kose-yazarlari)/)([^/\"'#?\s<>]+)",
+    re.IGNORECASE,
+)
 
 
 class Skeleton:
@@ -135,8 +154,13 @@ class Skeleton:
         return self._fillers[key]
 
     def rename(self, text: str) -> str:
+        """``text`` with every byline spelling replaced, and every author profile URL pointing
+        at the first fictional name's slug."""
         for real, fictional in self.authors.items():
             text = text.replace(real, fictional)
+        if "/" in text:
+            slug = _slug(next(iter(self.authors.values()), FICTIONAL_NAMES[0]))
+            text = _AUTHOR_PAGE.sub(lambda found: f"{found.group(1)}{slug}", text)
         return text
 
     def add_byline(self, name: str) -> None:
@@ -193,7 +217,7 @@ class Skeleton:
         for name in FICTIONAL_NAMES:
             if fold(name) not in taken:
                 return name
-        raise SystemExit("too many bylines on one page: add names to FICTIONAL_NAMES")
+        return FICTIONAL_NAMES[len(taken) % len(FICTIONAL_NAMES)]
 
     def _strip(self, root: lxml.html.HtmlElement) -> None:
         etree.strip_elements(root, etree.Comment, etree.ProcessingInstruction, with_tail=False)
@@ -247,7 +271,18 @@ class Skeleton:
             if not isinstance(element.tag, str):
                 continue
             ancestors = {a.tag for a in element.iterancestors() if isinstance(a.tag, str)}
+            if element.tag == "a" and _AUTHOR_PAGE.search(element.get("href") or ""):
+                # A link to an author's page shows the author's name.
+                text = element.text_content()
+                if looks_like_name(text):
+                    self.add_byline(text)
             if any(_is_metadata(node) for node in (element, *element.iterancestors())):
+                if any(_is_author_named(node) for node in (element, *element.iterancestors())):
+                    # Any journalist named here, not only the page's own byline: sidebars list
+                    # other columnists in elements named like the byline's.
+                    for text in (element.text, element.tail):
+                        if text and looks_like_name(text):
+                            self.add_byline(text)
                 continue
             # Inside article content every word goes; elsewhere, such as menus, short labels stay.
             inner = 1 if ({element.tag} | ancestors) & CONTENT_TAGS else MIN_WORDS
@@ -341,6 +376,22 @@ def _person_names(value: Any) -> Iterable[str]:
             kinds = [kinds] if isinstance(kinds, str) else kinds if isinstance(kinds, list) else []
             if not any(str(kind).endswith("Organization") for kind in kinds):
                 yield item["name"]
+
+
+def looks_like_name(text: str) -> bool:
+    """Two to four capitalized words of letters, and no digits: a person's name, not a date
+    line or a title."""
+    words = text.split()
+    if not 2 <= len(words) <= 4 or any(letter.isdigit() for letter in text):
+        return False
+    return all(_WORDS.fullmatch(word.strip(".'’-")) and word[:1].isupper() for word in words)
+
+
+def _is_author_named(element: lxml.html.HtmlElement) -> bool:
+    """Whether an element is named for an author, a byline, a writer or an editor."""
+    if not isinstance(element.tag, str):
+        return False
+    return bool(_AUTHOR_NAMED.search(f"{element.get('class') or ''} {element.get('id') or ''}"))
 
 
 def _is_metadata(element: lxml.html.HtmlElement) -> bool:

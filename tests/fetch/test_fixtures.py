@@ -282,3 +282,72 @@ def test_texts_98_percent_alike_get_equal_filler_too() -> None:
     shown = skeleton.replace_long(LEAD)
     assert skeleton.replace_long(LEAD.replace("yeniden", "yeni den")) == shown
     assert skeleton.replace_long("Bambaşka bir cümle burada duruyor ve hiç benzemiyor.") != shown
+
+
+def test_an_author_profile_url_loses_its_username() -> None:
+    # Diken's and Olay's JSON-LD point at profile pages whose username is one word of the name.
+    article = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {"@type": "NewsArticle", "author": {"@id": "https://x.com.tr/author/kisi/#author"}},
+            {
+                "@type": "Person",
+                "@id": "https://x.com.tr/author/kisi/#author",
+                "name": "Muhabir Kişi",
+            },
+        ],
+    }
+    page = (
+        f'<html><head><script type="application/ld+json">{json.dumps(article, ensure_ascii=False)}'
+        '</script></head><body><a href="https://x.com.tr/yazar/mkisi99">Yazar</a></body></html>'
+    )
+    skeleton = script.Skeleton({"Muhabir Kişi": "Elif Kaya"}).build(page)
+    assert "kisi" not in fold(skeleton)
+    assert skeleton.count("/author/elif-kaya/") == 2
+    assert "/yazar/elif-kaya" in skeleton
+
+
+def test_other_journalists_named_in_author_elements_become_fictional_too() -> None:
+    # Milliyet's sidebar lists other columnists in elements named like the page's own byline.
+    page = """<html><body><p class="byline">Muhabir Kişi</p>
+    <div class="columnist-list"><a class="author-name" href="/yazarlar/oteki">Öteki Yazar Adı</a>
+    <span class="writer">Haber Merkezi</span><span class="author-label">Yazarlar</span></div>
+    <p>Metnin ilk paragrafı burada yazıyor.</p></body></html>"""
+    skeleton = script.Skeleton({}).build(page)
+    built = lxml.html.document_fromstring(skeleton)
+    assert "Öteki" not in skeleton
+    assert "Muhabir" not in skeleton
+    assert built.xpath("string(//a[@class='author-name'])") in script.FICTIONAL_NAMES
+    assert built.xpath("string(//span[@class='writer'])") == "Haber Merkezi"
+    assert built.xpath("string(//span[@class='author-label'])") == "Yazarlar"
+
+
+def test_a_link_to_an_authors_page_loses_the_authors_name() -> None:
+    page = """<html><body><nav><a href="/yazar/oteki-yazar">Öteki Yazar</a></nav>
+    <p>Metnin ilk paragrafı burada yazıyor.</p></body></html>"""
+    skeleton = script.Skeleton({}).build(page)
+    assert "Öteki" not in skeleton
+    built = lxml.html.document_fromstring(skeleton)
+    assert built.xpath("string(//nav/a)") in script.FICTIONAL_NAMES
+
+
+@pytest.mark.parametrize(
+    ("text", "name"),
+    [
+        ("Ayşe Demir", True),
+        ("AYŞE DEMİR", True),
+        ("Ahmet Hakan Yılmaz", True),
+        ("Yayınlanma: 28 Şubat 2023 - 22:34", False),
+        ("Hayat yenilenir mi bu kış", False),
+        ("Yazarlar", False),
+    ],
+)
+def test_only_name_like_texts_count_as_names(text: str, name: bool) -> None:
+    assert script.looks_like_name(text) is name
+
+
+def test_a_date_line_in_an_author_element_keeps_its_text() -> None:
+    page = """<html><body><div class="author-article-date"><time>Yayınlanma: 28 Şubat 2023 - 22:34
+    </time></div><p>Metnin ilk paragrafı burada yazıyor.</p></body></html>"""
+    skeleton = script.Skeleton({}).build(page)
+    assert "Yayınlanma: 28 Şubat 2023 - 22:34" in skeleton
