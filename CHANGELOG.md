@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-24
+
 `search()` now reads 24 outlets by default instead of 7, so the same search finds more articles
 and makes more requests. Every outlet is still read from its own archive, under 1.0's robots.txt
 and politeness rules; outlets are searched in parallel, each at one request per second. To search
@@ -334,6 +336,7 @@ The columns 0.1.0 returned map like this:
 - First release: `NewsScraper` collects news articles from CNN Türk, Hürriyet, Milliyet, Sabah and
   Posta for one or more keywords.
 
-[Unreleased]: https://github.com/demirogun/tr-news-scraper/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/demirogun/tr-news-scraper/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/demirogun/tr-news-scraper/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/demirogun/tr-news-scraper/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/demirogun/tr-news-scraper/releases/tag/v0.1.0
